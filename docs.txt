@@ -1,0 +1,32 @@
+NodeJS is nothing is just a runtime which is used to run the javascript outside of the browser. So who does run the code if not the browser? The answer is V8 engine developed by Google. Where the javascript code will be parse and run in NodeJS. Before NodeJs this was completely impossible to access the file system. After NodeJS this has made javascript to use on server development for website. you can build fast, highly scalable and network applications.
+
+*************Pros of NodeJS
+NodeJS is single thread, event driven, non-blocking I/O model which makes it highly lightweight and efficient. 
+It is perfect for building highly scalabe and fast apps.
+
+**********Use Cases of NodeJS
+1. API with databases behind it (preferably NoSQL like MongoDB)
+2. Data Streaming apps such as Youtube
+3. l-time chat applications
+4. ver-side web applications
+5. single language for entire stack
+
+
+**NOTE**: DO NOT USE NODE JS if your server needs high end processing such as image processing, video conversion etc. (CPU intensive tasks). So its better you use RoR, PhP or Python
+REPL: Read Eval Print loop
+
+
+**********Checking global variables in terminal
+
+type node and press enter
+
+now press tab button once or twice
+
+********Checking methods which we can apply on global variables
+type any global variable and add . at the end and press tab once or twice
+
+
+for example:
+
+>String.    (after writting that press tab twice)
+
