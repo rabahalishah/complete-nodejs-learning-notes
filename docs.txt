@@ -4,6 +4,7 @@ NodeJS is nothing is just a runtime which is used to run the javascript outside 
 NodeJS is single thread, event driven, non-blocking I/O model which makes it highly lightweight and efficient. 
 It is perfect for building highly scalabe and fast apps.
 
+NOTE: in node JS I/O means file accessing and networking like stuff.
 **********Use Cases of NodeJS
 1. API with databases behind it (preferably NoSQL like MongoDB)
 2. Data Streaming apps such as Youtube
@@ -29,4 +30,796 @@ type any global variable and add . at the end and press tab once or twice
 for example:
 
 >String.    (after writting that press tab twice)
+
+
+***************Modules in Javascript
+with the help of node js we can things which we cannot do in the browser such as interacting with the files using file system.
+
+const fs = require('fs');
+
+//here we have imported our module in backend the require function has created an object which is stored in fs variable now we can apply bunch of methods on it.
+
+const textIn = fs.readFileSync('./txt/input.txt', 'utf-8');
+console.log('textIn:', textIn);
+
+const textOut = `This is what we know about Avocado: ${textIn}. \nCreated on ${Date.now()}`;
+fs.writeFileSync('./txt/output.txt', textOut);
+
+console.log('File has been written!');
+
+This is how we read and write files in JS synchronously.
+
+A gentle reminder of async and sync javascript doe.
+sync is a blocking code whereas async is a non blocking code.
+
+Since we all know that NodeJs is made up on single thread paradigm model. which simply means that all the user who are accessing our application are using the single thread. If any of the user used a synchronous code that is blocking all the other users have to wait. In order to prevent this we use async code which also runs a callback function once the code is executed. In JS you will see there is a lot of callback functions.
+
+Example:
+
+const fs = require('fs');
+const textIn = fs.readFile('./txt/input.txt', 'utf-8', (err,data)=>{console.log(data)};
+console.log('textIn:', textIn);
+
+
+***************Creating a server
+In node JS a server can create by using http module so,
+const http = require("http");
+
+const server = http.createServer((req, res) => {
+  console.log(req);
+  res.end("Hello from the server");
+});
+
+// Here when ever the user sends the request to the server the above callback function is gonna run
+
+Server.listen(8000, "127.0.0.1", () => {
+  console.log("Listening to request on port 8000");
+});
+
+NOTE: port is nothing just a subaddress for the host that is localhost
+
+
+************Routing in nodeJs
+
+const http = require("http");
+const url = require("url");
+
+const server = http.createServer((req, res) => {
+  console.log("URL: ", req.url);
+
+  const pathName = req.url;
+  if (pathName === "/" || pathName === "/overview") {
+    res.end("This is an overview page");
+  } else if (pathName === "/product") {
+    res.end("This is a product page");
+  } else {
+    res.writeHead(404, {
+        'Content-type': 'text/html',
+        'my-own-header': 'This is my own custom header'
+    }) 
+    // this method is used to send back the status code and headers with a response. but important point to note that
+    // the header must be set before sending the res.end response.
+    res.end("<h1>404 ERROR, Couldn't found the page</h1>");
+  }
+});
+
+server.listen(8000, "127.0.0.1", () => {
+  console.log("Listening to request on port 8000");
+});
+
+// Headers are nothing they are just a piece of information which we send either as a req or res.
+// we can have our custom headers as well. There are some general headers such as 'content-type'. This will tell the browser
+// what type of content is gonna come as a response.
+
+
+************APIs
+while building APIs simply imagine that the VS code is a server and browser is a client. All responses would be shown to the client
+
+*********Imp methods
+req.url //is used to get the the whole url
+url.parse(req.url, true) // this is used to get an object which contains all the information about the searching url which also contains the query object.
+
+*************Creating custom module
+
+module.exports = (temp, product) => {
+    let output = temp.replace(/{%PRODUCTNAME%}/g, product.productName); // here g means global
+    output = output.replace(/{%IMAGE%}/g, product.image); // here g means global
+    output = output.replace(/{%PRICE%}/g, product.price); // here g means global
+    output = output.replace(/{%FROM%}/g, product.from); // here g means global
+    output = output.replace(/{%NUTRIENTS%}/g, product.nutrients); // here g means global
+    output = output.replace(/{%QUANTITY%}/g, product.quantity); // here g means global
+    output = output.replace(/{%DESCRIPTION%}/g, product.description); // here g means global
+    output = output.replace(/{%ID%}/g, product.id); // here g means global
+  
+    if (!product.organic)
+      output = output.replace(/{%NOT_ORGANIC%}/g, "not-organic"); // here g means global
+    return output;
+  };
+
+// this is how you export you custom module
+
+const replaceTemplate = require('./modules/replaceTemplate')
+
+// And this is how you can import your custom made module
+
+
+*************NPM
+NPM stands for node package manager. Its a CLI registry for installing open source packages. It is one the largest package registry in the world.
+
+***********Dev dependencies
+These are the dependencies which are used only for development purposes. These are simply tools which are used while developing an application such as nodemon, module bundler, testing tool etc. Our application do not depend upon them. These dependencies are not included in production.
+This is how you install a dev dependency 
+
+>$ npm install nodemon --save-dev
+
+**********Package versioning and updating
+
+a.b.c
+
+where,
+a = major version (Huge new release. This may break changes. This may not work with the previous version or code)
+b = minor version (new features but these features will not break changes. The new version would be back-ward compatible)
+c = patch version (Bug fixes)
+
+-----------
+
+~a.b.c
+
+here ~ this symbol means that we only want to change the patches. Like you open your code base after long time and run npm install it will not update your package to the latest version of the major change but it will only update the patch that is c in this case. It is very safe to use this ~ instead of * which means all versions
+
+^a.b.c
+
+In case of this ^ symbol you will be updated to the wanted or latest version of the app.
+
+
+There is a command which is used to check the outdated ness of a package
+
+npm outdated
+
+this will give you the information about your package which is installed in your application. That what is its current version what is the accepted version and what is the latest version
+-------------------------- Prettier custom configurations
+create a file called .prettierrc
+and change it like as below as I want to have single quote instead of double qoute for strings.
+{
+    "singleQuote": true
+}
+
+
+****************************************How web works behind the scenes
+When user make a request from the browser by entering the url it contains three component
+
+protocol://domain/resource
+
+https://google.com/maps
+
+In actual what we type that is URL is not the actual address of the server. The address of serve doesn't make sense in reading as its look something like
+
+https://216.58.211:433
+
+so if the url is not the actual address then how a browser is gonna reach our desired server? Here comes DNS (Domain name server) which is a special type of server provided by the ISP (Internet service provider). DNS server is exactly like a phone book.
+
+when a client makes a request the url is send to DNS server where it is matched with the actual address and then the DNS server forward the request to the actual server and then server sends back the response. This whole cycle is called client server Architecture or Client server Request-Response model.
+
+
+When our website is put on the internet TCP/IP (Transmission control protocol/ Internt Protocol) socket connection is established between client and a server. This connect is kept alive all the time when the data is transferring between the web server and client. These communication protocols actually defines some set of rule that how the data will move on internet.
+
+HTTP is another protocol. Which allows the user to send request to the server and get response back from the server.
+The difference between HTTP and HTTPs is that HTTPS is encrypted with TSL or SSL which are some more protocols.
+
+HOW HTTP Request looks like
+
+It has 3 components
+Start line: HTTP method (GET,POST etc) + request target + http version
+HTTP request headers: (Information)
+Request Body: (This 3rd component will be only here if we are sending data to the server that is POST)
+
+
+HOW HTTP Response looks like
+1. Start line: http version + status code + status message
+2. HTTP request headers: (Information, the diff. b/w the header of http res and http req is that in case of  http res these are the headers which are specified by the      backend developer) 
+3. request Body: (This will specified by the backend developer which data is to send back to the client)
+
+The html file is send back and get scanned by the browser to collect all resources to build the app and show to the client.
+
+
+The job of TCP is to break the data in thousands of small chunks called packets before send the data. Once the data is reached to the destination it will reassemble all the packets into the original request or response. The main reason of following this protocol is to increase the speed of transfering data.
+The loading of data would be much slower if we send the data as a single big chunk which is not a good idea.
+
+Where as the job of the IP is to route the data over the data and to make sure that the data is arrived to the right address.
+
+
+
+-----------------Static VS Dynamic 
+Static files are simply those files are ready to be served. There is no work done on the server. There is no backend code. You may think that how can a website which is interactive and contains a JS file and still be a static site? Why not dynamic? The word used dynamic on front end is different from the word dynamic used on the backend.
+
+In dynamic websites: there is database and an app like node JS is running on the server which is sending request to the Database and fetching data from database and filling the front end template and made the ready to serve file and then send to browser to display to the client. This whole process is called SSR server side rendering.
+NEXTjs is an example of SSR
+
+API-powered website: API website are same as dynamic website but the difference is that we send data to browser in the form of JSON data format. Not any CSS, HTML and JS file. This process is the building of APIs. 
+The JSON data which was send from the backend is received on the front end by the frame works like react, angular and then it is rendered on the front end side. This is called consuming APIs. They are also called cliend side Rendering (CSR)
+Node is best for making API-powered websites. we can make both kinds of websites with nodejs.
+
+The huge advantage is of api-powered website is that as these are created in node or in any other languages can be consumed by other clients such as native mobile apps than just the browser.
+
+in case of Dynamic SSR websites we cannot do this we can only run them in browser.
+
+
+*****************NodeJS archtitecture behind the scenes
+NodeJS do not only rely on V8 engine of the browser but also rely on some other stuff such as 
+libuv (libuv is a multi-platform C library that provides support for asynchronous I/O based on event loops.)
+http-parser (for parsing http request)
+c-area (For DNS request stuff )
+OpenSSL (For cryptography stuff)
+zlib (For file compression)
+
+
+here important point to not that v8 engine and libuv both are written in C++. Here nodeJs is also written in JS & C++ but the beauty is that nodeJS combines them all and provide us the access to C++ function with pure JS.
+
+
+***************NODE PROCESS and THREADS
+
+Node process is nothing but an instance of a program in execution on a computer
+It is always and most important to remember that node always run in single thread. Not matter either there are thousand users or millions of users it is always gonna run in single thread.
+This feature of Node makes it easier to block the code. So we always have to take care about the blocking of the code.
+
+**************So what happens when a JS code is executed?
+1. When the program is initialize all the top level code is executed first (the code Which is outside of any callback function), all required modules that our app are required and all callbacks are registerd. After that event loop finally starts running. (Event loop is a heart of nodeJS architecture as most of the code is running in event loop).
+But there are some task which are too extensive to run in event loop which can block our code. This is the time where thread pool comes in. Which is just like event loop its a library provided by libuv to nodeJS to perform async I/O opertations and to manage event loop.
+Libuv provides us 4 or more additional threads (we can configure upto 128 threads) but usually these 4 are enough. These threads combines and form a thread pool. So nodeJS autmatically offload heavy task to the thread pool such as file system APIs, cryptography, compression of files and DNS lookups to match the urls with real IP addresses.
+2. All the code which is not the top level code is gonna run in event loop (the code which is inside the callback function is called non-top-level code).
+
+So in short nodeJS do orchestration. It receive the callbacks, execute them in event loop and in case of heavy task it send it to the thread pool.
+
+EVENT LOOP  IN DEPTH:
+Event loop has many phases. And each phase has a callback queue.
+
+1st phase Expiration timer callbacks : This phase talks care about the expiration of callbacks (setTimeOut()). In callback queue all code runs behind each other until the node make sure that there is no callback which is left in the callback queue. Once this phase completed node moves to the 2nd phase
+
+2nd phase I/O polling and callbacks: This phase handles stuff related to I/O such as networking and  file accessing. 99% of our code is gonna execute in this phase.
+
+3rd phase setImmediate callbacks: In this phase node runs those callbacks which are supposed to immediately execute right after the execution of first two phases. This phase is basically an advance topic and can be useful in some cases.
+
+4th Close callbacks: This phase includes the callbacks which are supposed to be executed on closing such as shutdown of the websocket etc. 
+
+NOTE: Beside these 4 callback queue there two more callbacks such as PROCESS.NEXTTICK() queue and MICROTASKS queue which are used to resolve promises.
+Important point o note that these two special queue do not have to wait to complete the loop of all 4 above mentioned callbacks. These queues get executed after all 4 callbacks each time. Here PROCESS.NEXTTICK() queue  is used for many advance cases.
+
+
+
+************WHY DO WE NEED EVENT LOOP?
+The answer is simple the we need event loop because nodeJS is single thread no matter how many users are there. So there is a danger of blocking of code thats why we need event loop which makes it more light weight and scalable.
+
+NOTE: ITS YOUR RESPONSIBILTY TO MAKE YOUR CODE NON-BLOCKING.
+THIS IS HOW YOU CAN PREVENT YOUR CODE NOT TO BLOCK:
+
+1. Dont use synchronous versions of fcuntions in the fs, crpyto and zlib modules inyour callback functions.
+2. Don't perform complex claculations (loops inside loops)
+3. Be careful with JSON in large objects.
+4. Don't use too complex regular expressions
+
+
+************EVENT LOOP IN ACTION
+
+const fs = require("fs");
+
+setTimeout(() => console.log("Timer 1 finish"), 0);
+setImmediate(() => console.log("Immediate 1 finished"));
+
+fs.readFile("test-file.txt", () => {
+    console.log("I/O finished");
+    setTimeout(() => console.log("Timer 2 finish"), 0);
+    setTimeout(() => console.log("Timer 3 finish"), 3000);
+    setImmediate(() => console.log("Immediate 2 finished"));
+    process.nextTick(()=> console.log('Process.nextTick'))
+});
+
+
+console.log('Hello from the top level code');
+
+// Ouput: 
+Hello from the top level code
+Timer 1 finish
+Immediate 1 finished
+I/O finished
+Process.nextTick
+Immediate 2 finished
+Timer 2 finish
+Timer 3 finish
+
+
+Explanation:
+As expected our top level code which is outside of any callback function get executed first after that event loop looked for the callbacks. When ever there is a settimeout function event loop will wait for the polling phase until the timer is expired. Therefore, immediate function ran after the set timeout function.
+the important point to note here is that process.nextTick get executed before the immediate and setTimeout The reason is that process.nextTick is a part of microtasks queue not callback queue. And we know that microTasks queue runs after each phase out of all 4 phases. It donot run after all 4 phases of event loop to complete. It will be check every time when each of the phase of event loop will be completed.
+
+
+Example 3:
+const fs = require("fs");
+const crypto = require("crypto");
+const start = Date.now()
+
+setTimeout(() => console.log("Timer 1 finish"), 0);
+setImmediate(() => console.log("Immediate 1 finished"));
+
+fs.readFile("test-file.txt", () => {
+  console.log("I/O finished");
+  setTimeout(() => console.log("Timer 2 finish"), 0);
+  setTimeout(() => console.log("Timer 3 finish"), 3000);
+  setImmediate(() => console.log("Immediate 2 finished"));
+  process.nextTick(() => console.log("Process.nextTick"));
+  console.log("I/O 2nd finished");
+
+  crypto.pbkdf2('password','salt', 100000, 1024, 'sha512', ()=>{
+    console.log(Date.now() - start,"Password encrypted");
+  })
+});
+
+console.log("Hello from the top level code");
+
+
+// output
+Hello from the top level code
+Timer 1 finish
+Immediate 1 finished
+I/O finished
+I/O 2nd finished
+Process.nextTick
+Immediate 2 finished
+Timer 2 finish
+2057 Password encrypted
+Timer 3 finish
+
+
+
+// Example 4: Where we will use synchronous version of the code. Here
+const fs = require("fs");
+const crypto = require("crypto");
+const start = Date.now()
+process.env.UV_THREADPOOL_SIZE = 1 //here we can manage the number of threads in thread pool. 
+
+setTimeout(() => console.log("Timer 1 finish"), 0);
+setImmediate(() => console.log("Immediate 1 finished"));
+
+fs.readFile("test-file.txt", () => {
+  console.log("I/O finished");
+  setTimeout(() => console.log("Timer 2 finish"), 0);
+  setTimeout(() => console.log("Timer 3 finish"), 3000);
+  setImmediate(() => console.log("Immediate 2 finished"));
+  process.nextTick(() => console.log("Process.nextTick"));
+  console.log("I/O 2nd finished");
+
+  crypto.pbkdf2Sync('password','salt', 100000, 1024, 'sha512', ()=>{
+    console.log(Date.now() - start,"Password encrypted");
+  })
+  crypto.pbkdf2Sync('password','salt', 100000, 1024, 'sha512', ()=>{
+    console.log(Date.now() - start,"Password encrypted");
+  })
+  crypto.pbkdf2Sync('password','salt', 100000, 1024, 'sha512', ()=>{
+    console.log(Date.now() - start,"Password encrypted");
+  })
+  crypto.pbkdf2Sync('password','salt', 100000, 1024, 'sha512', ()=>{
+    console.log(Date.now() - start,"Password encrypted");
+  })
+});
+
+console.log("Hello from the top level code");
+
+//output
+
+here the output will be line by line as the code is executing synchronously last four lines of the output will not show until the password is not encrypted this is happening because we are using 3rd party module in callback this means out encryption was not happening inside event loop. While the rest of the code was. The compiler will only pick the code from the event loop once the code in thread pool has completed. As the code in thread pool was not asynchronous therefore compiler had to wait.
+
+
+Hello from the top level code
+Timer 1 finish
+Immediate 1 finished
+I/O finished
+I/O 2nd finished
+1826 Password encrypted
+3597 Password encrypted
+5318 Password encrypted
+7070 Password encrypted
+Process.nextTick
+Immediate 2 finished
+Timer 2 finish
+Timer 3 finish
+
+// EVENT AND EVENT-DRIVEN ARCHITECTURE:
+
+In NodeJS everything is event driven. 
+There is an emitter and there is a listener.
+
+For example
+
+server.on('request', callback)
+
+here whenever user make the request the server.on emit the event and here 'request' will listen it. This is how emitting and listening the event cycle goes.
+
+
+***********STREAMS
+Streams is also one of the fundamental concept in CS. Its basically a concept in which we process (read and write) the data by pieces instead of processing the whole data once.
+Perfect application of this concept is in Youtube and netflix where the videos are streamed as their piece of data is downloaded. Instead of waiting for the whole file to download and play streams plays as the data is downloading.
+
+streams are perfect for handling large volumes
+TYPES OF STREAMS
+In NodeJS there are 4 types of streams
+1. Readable Streams: Streams from which we can consume data such as http requests, fs read streams, pipe(), read() functions.
+2. Writable Streams: (most imp) Streams from which we can write data such as http requests, fs read streams, write(), end() functions.
+3. Duplex Streams: Streams that are both readable and writable such as web sockets.
+4. Transform Streams: Streams that transform data as it is written or read.
+
+
+***********STREAMS IN ACTION
+const fs = require('fs');
+const server = require('http').createServer();
+
+server.on('request', (req, res) => {
+  // sol1 : without stream
+  fs.readFile("test-file.txt", (err, data) => {
+    if (err) console.log(errr);
+    res.end(data);
+  });
+
+  // sol2: Stream
+
+  const readable = fs.createReadStream('test-file.txt');
+  
+  readable.on('data', (chunk) => {
+    res.write(chunk);
+  });
+  readable.on('end', () => {
+      res.end();
+    });
+    readable.on('error', (error) => {
+        console.log(error);
+        res.statusCode = 500;
+        res.end('File not found!');
+      });
+      
+  //sol3: 
+    const readable = fs.createReadStream('test-file.txt');
+    readable.pipe(res)
+    // readableSource.pipe(writeableDestination)
+
+
+});
+
+server.listen(8000, '127.0.0.1', () => {
+  console.log('Listening...');
+});
+
+
+EXPLANATION: Here in this example we are trying to read a large txt file and send it as a response to the client on the browser. The solution 1 is the worst solution of sending and reading such large text file as this will eventually make your app to crash. 
+
+In solution two we are reading data in the form of chunk by making the data a readable stream. This solution is good but there is special case in which reading the data from the file is fast but sending response is not as faster as we are reading the data. This situation is called back pressure. In order to avoid this we just have to you use pipe method on our readableSoure that is text file in this case. This is solution 3 which is best for this case.
+
+
+///////////////////// HOW REQUIRE MODULE WORKS	
+IN node js as we all know if we want to export any module we simple do
+
+module.exports = yourFunctionName;
+
+we can also do:
+
+module.exports = anyFunction
+
+we can also do:
+
+exports.anyName = () => {}
+
+what is Caching
+// in path file
+console.log("I am happpy")
+module.exports = () => console.log("I am sad");
+
+
+// In other file
+require('./path)()
+require('./path)()
+require('./path)()
+
+//output
+I am happpy
+I am sad
+I am sad
+I am sad
+
+
+// the  reason by I am happy console only 1 time due to caching. Node stores in somewhere in memory and console only once no matter how many time it is get imported. Where as I am sad was console 3 times because it was calling by a function 3 times.
+
+
+
+****************************Express
+Express is a NodeJS frame work which means it is build on the top of NodeJs. It includes complex routing, easier handling of request and responses, middleware, SSR etc. It makes easier for us to organize our applicaiton in MVC architecture.
+Express automically send some pre-defined headers. We do not manually defined the headers in some cases.
+
+************Postman
+Postman is a tool which is used for API testing. It works like browser (Client side) but it do not render HTML.
+
+
+*************Express Natrous Project
+
+One thing that I would like to mention before making project in Node js that is "Web is all about sending request and responses"
+
+Standard is that we firt make an app.js file where we do all our configuration like creating app in express, defining routes and ports and listening to the server.
+
+************Setting UP express and basic routing
+// basic configuration in app.js
+
+const express = require('express')
+
+const app = express()
+
+app.get('/', (req,res)=>{
+    res.status(200).send('Hello from server side!')
+})
+
+const port = 3000;
+app.listen(port,()=>{
+    console.log(`Server is running on port ${port}`);
+})
+
+NOTE: Since its a good practice and easy to send json file so instead of using res.send we will use res.json({key:value}) as below:
+
+const express = require('express');
+
+const app = express();
+
+app.get('/', (req, res) => {
+  res.status(200).json({ message: 'Hello from server side!', app: 'Natours' });
+});
+app.post('/', (req, res) => {
+  res.status(200).json({ message: 'You can post data to this endpoint', app: 'Natours' });
+});
+
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+
+
+
+Always remember, you can read data from Client side using endpoint/URL defined with GET method. Similarly, YOu can send data from Client side to the endpoint/URL which is defined with POST method.
+
+
+***********REST API architecture
+REST stands for Representaion States Transfer, It is basically a way of building API logic so they are easy to consume for the user. In order to build APIs following the principle of REST architecture we have to follow some rules:
+1. Separate API into logical resources.
+2. Expose structured, resource-based URLs
+3. Use HTTP methods
+4. Send data as JSON format
+5. Must be stateless
+
+Let understand all 5 principles one by one:
+1. Separate API into logical resources: Here resource means any kind of information such as reviews, tours etc. First separate all the information in logical way. Here logical means name shoudl make sense.
+
+2. Expose structured & 3. Use HTTP methods, resource-based URLs: The address of our URLs should be resource based and  do not include any action in their name such as /getNewTour, /addNewTour, /deleteTour, /updateTour etc. Don't do this. It should not be look like this
+so instead of this our URLs should look like this:
+
+GET   /tours  (for getting the tours)
+POST  /tours   (for adding new tours)
+DELETE /tours   (for deleting the tours)
+PUT or PATCH /tours    (for updating the tours the difference b/w put and patch is that put is to update the entire object and patch is used to update the piece of an object)
+
+here you have notice that our endpoints are same put our HTTP methods are different. Our URL contains only names not actions. Our actions are defined by our http method.
+
+in case of getting or approaching to a specifi user or a specific tour we have to get their by a unique id or unique information. for example:
+GET   /tours/46  (for getting the tour having id 46)
+
+4. Send data as JSON format:
+JSON is very lightweight to transfer information. In JSON all keys are strings. Values can be anything such as strings, number, boolean etc.
+The good practice is that we use Jsend. In this format we use a status and wrap all data in data object
+
+{
+"status":"succcess",
+"data": {
+	"id":5,
+	"name":"John",
+	}
+}
+
+5. API Must be stateless
+Means all state must be handled on client side. This means that each request must contain all the necessary information to process a certain request. The server should not have to remember previous requests on the server.
+
+For example:
+If we are on currently page 5 and we have made an API URL that is /nextPage
+
+so in order to go to page 6 server shoudl remember current page as nextPage = currentPage + 1. This is bad. We should avoid it in REST architecture. Instead you should simply pass a number
+/page/6
+
+
+*****************Lets start building APIs
+
+I will just mention here best practices and things which are important only
+
+app.get('/api/v1/tours', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    results: tours.length,
+    data: {
+      tours: tours,
+    },
+  });
+});
+
+here making APIs URL with /api/v1/tours
+here v1 is the version of the api. It is a good practice to add version of your API in URL as it is important while making changes to it to make version 2.
+
+*******Handling POST request
+app.post('/api/v1/tours', (req, res) => {
+	console.log(req.body);
+    res.status(200).send('Done') // You always have to send response back to complete req-res cycle
+})
+
+here in post request the data is send from the client to the server. So that data should be available in req parameter right? but Express does not put that body data on the req parameter. So in order to have that availble we use a simple middleware on top of the express app. (Middleware is simply a function that modifies the incoming request data. It is called middleware as it stands between the request and the response)
+
+const app = express();
+app.use(express.json())
+
+
+****Sending data from the postman (Client side) to the server
+Select HTTP POST  method and paste your end point and go to body tab and select raw and JSON
+now write you JSON object
+{
+    "name": "Test Tour",
+    "duration": 10,
+    "difficulty": "easy"
+}
+
+
+
+**JavaScript**
+const newTour = Object.assign({ id: newId }, req.body);
+
+// This is how you merge two objects in javascript.
+
+
+
+***Saving data to our finctional database (folder or .json file)
+
+app.post('/api/v1/tours', (req, res) => {
+  console.log(req.body);
+  const newId = tours[tours.length - 1].id - 1;
+  const newTour = Object.assign({ id: newId }, req.body);
+  tours.push(newTour);
+
+  
+  fs.writeFile(`${__dirname}/dev-data/data/tours-simple.json`, JSON.stringify(tours), err => {
+    res.status(201).json({
+        status: 'success',
+        data : {
+            tour : newTour
+        }
+    })
+
+  })
+});
+
+
+// Here status 201 means created
+
+***********Responding to URL parameters
+If you want to add a variable in your url this is how you can do that
+
+app.get('/api/v1/tours/:id', (req, res) => {
+    console.log(req.params);
+  res.status(200).json({
+    status: 'success',
+  });
+});
+
+// so here If you would access this endpoint with any id after /api/v1/tours/ such as /api/v1/tours/25
+
+you will get
+
+{ id: '25' }
+
+you can also do something like this 
+app.get('/api/v1/tours/:id', (req, res) => {
+  console.log(req.params);
+  const id = req.params.id * 1;
+  const tour = tours.find((el) => el.id === id);
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: tour,   
+    },
+  });
+});
+
+
+So on accessing 127.0.0.1:3000/api/v1/tours/69/68/67
+you can get
+{ id: '69', x: '68', y: '67' }
+
+
+**JS: const id = req.params.id * 1; //This is how you convert a string into a number. Type coersion JS automatically converts a string number into a number one multiplying it by any number. Here find method loop over each element and return a new array wo satisfay the logic in the callback function.
+
+*************Handling patch request
+app.patch('/api/v1/tours/:id', (req, res) => {
+    if (req.params.id *1 > tours.length) {
+        return res.status(404).json({
+            status: 'fail',
+            message: 'Invalid ID'
+        })
+    }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: '<update tour here>',
+    },
+  });
+});
+
+This is how we deal with a basic patch request.
+
+
+****************Handling Delete request
+app.patch('/api/v1/tours/:id', (req, res) => {
+    if (req.params.id *1 > tours.length) {
+        return res.status(404).json({
+            status: 'fail',
+            message: 'Invalid ID'
+        })
+    }
+  res.status(204).json({
+    status: 'success',
+    data: null,
+  });
+});
+
+This is how we deal with a basic delete request.
+
+**************Cleaning the code
+
+// separate all login of all HTTP methods into a separate function and then call them respectively.
+
+app.get('/api/v1/tours', getAllTours);
+app.get('/api/v1/tours/:id', getTour);
+app.post('/api/v1/tours', createTour);
+app.patch('/api/v1/tours/:id', updateTour);
+app.delete('/api/v1/tours/:id', deleteTour);
+
+where getAllTours is:
+const getAllTours = (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    results: tours.length,
+    data: {
+      tours: tours,
+    },
+  });
+};
+
+and so on of rest of the funtions
+
+*************Cleaning the code part 2
+
+now in order to overcome the repeatability of routes we can do something like this
+
+app.route('/api/v1/tours').get(getAllTours).post(createTour);
+app
+  .route('/api/v1/tours/:id')
+  .get(getTour)
+  .patch(updateTour)
+  .delete(deleteTour);
+
+// This is exactly same as:
+
+// app.get('/api/v1/tours', getAllTours);
+// app.get('/api/v1/tours/:id', getTour);
+// app.post('/api/v1/tours', createTour);
+// app.patch('/api/v1/tours/:id', updateTour);
+// app.delete('/api/v1/tours/:id', deleteTour);
+
+
+***************Middleware and Request Response cycle
+
+Middleware is nothing its simple a req-res Obj or you can say its a function which get executed in between sending the response and receiving the request.
+In express everthing is middleware. Even routes functions are middleware. All middleware in our app is called middleware stack.
+
+The order of middleware in a middleware stack is depent on the order they are declared. The one who is defined earlier will get executed first. So the order of the code matters a lot in Express. You have noticed in many of the code that next() function is executed at the end of every middleware. In all middleware functions we have access to next() function just same as we have access to req, res functions in HTTP methods.
+
+So when the next() function is executed we call the next middleware with the exact same req-res obj. Its like pipeline through which our receiving request obj goes through. Moreover, in the last middleware we do not call next function we actually send response back to client.
+
+************
 
