@@ -821,5 +821,511 @@ The order of middleware in a middleware stack is depent on the order they are de
 
 So when the next() function is executed we call the next middleware with the exact same req-res obj. Its like pipeline through which our receiving request obj goes through. Moreover, in the last middleware we do not call next function we actually send response back to client.
 
-************
+************Creating our own Middleware
 
+
+app.use((req, res, next) => {
+  console.log('Hello from the middleware!');
+  next();
+});
+
+
+// This is the most basic middleware function which will run whenever we will make an API request on any route. This is because we didnt specified any route and defined this middlerware at the top of all routes thats why all routes after the declaration of this middleware will call this middleware on making request. As we know that in middleware the order of it declaration matters a lot. If we define it at the end after the all routes. Then this was not gonna call on any api request.
+
+**EXP2**
+app.use((req, res, next) => {
+  req.requestTime = new Date().toISOString();
+  next();
+});
+
+const getAllTours = (req, res) => {
+  console.log(req.requestTime);
+  res.status(200).json({
+    status: 'success',
+    requestAt: req.requestTime,
+    results: tours.length,
+    data: {
+      tours: tours,
+    },
+  });
+};
+
+
+*************Using 3rd party middleware
+
+npm install morgan
+HTTP request logger middleware for node.js. Its is a very simple middlerware. On making any HTTP request this will give you a log of that request. Here log includes, HTTP Method, API endpoint,status code, time it took to send back response, and size of the response in bytes.
+
+Here is an example of morgan log:  GET /api/v1/tours 200 4.679 ms - 8680
+
+const morgan = require('morgan');
+app.use(morgan('dev'));
+
+//This Morgan middleware just like normal middleware returns a function (req, res, next)
+
+
+
+
+***************Creating Routes for users
+app
+   .route('/api/v1/users')
+   .get(getAllUsers)
+   .post(createUser);
+app
+  .route('/api/v1/users/:id')
+  .get(getUser)
+  .patch(updateUser)
+  .delete(deleteUser);
+
+
+****************Creating and mounting multiple routes
+
+// Routes for tours
+app.route('/api/v1/tours').get(getAllTours).post(createTour);
+app
+  .route('/api/v1/tours/:id')
+  .get(getTour)
+  .patch(updateTour)
+  .delete(deleteTour);
+
+//Routes for users
+app.route('/api/v1/users').get(getAllUsers).post(createUser);
+app
+  .route('/api/v1/users/:id')
+  .get(getUser)
+  .patch(updateUser)
+  .delete(deleteUser);
+
+// Here we have to note that till this point all our routes, controller for both users and tours are in the same file. Now its time to move them in a separate file as it is a good practice and will allow us to manage and scale our code. But before doing that we have to define separate route for users and tours. Here in this case both are sunning on same  route that is app routs. So in order to separate it lets use a middleware for creating separate routes
+
+
+This is how you do that:
+
+const tourRouter = express.Router();
+app.use('/api/v1/tours', tourRouter); //This is basically called Mouting the router
+tourRouter.route('/').get(getAllTours).post(createTour);
+tourRouter.route('/:id').get(getTour).patch(updateTour).delete(deleteTour);
+
+here we are using middlerware for a specific route that is /api/v1/tours now this will become your parent route.
+
+
+************File structuring
+
+So create a routes folder in the root directory
+and create two files:
+1. tourRoutes.js
+2. userRoutes.js
+
+Now put the respective route code in respective files except middlewares. keep your middleware in your app.js file and remember that it is a standard.
+Moreover in tourRoutes.js we do no export module with tourRouter we will export module with Router name as
+const Router = express.Router();
+module.exports = Router;
+
+same for userRoutes.js
+
+
+now create a controller folder and create two new files called
+
+1. tourController.js
+2. userController.js
+
+and paste all your controller functions here and export them all as
+
+exports.myFunction => {}
+exports.myFunction2 => {}
+
+and so on
+
+const controllerFunctions = require('./path');
+
+// how to use?
+
+controllerFunction.myFunction
+controllerFunction.myFunction2
+// This is how you use these functions in other files
+
+
+Create a server.js on  the level of app.js and run server there
+
+// In app.js
+.. rest of the code
+module.exports = app;
+
+
+// In server.js
+const app = require('./app')
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+
+
+Now lets summarize our file structure
+
+we have
+
+1. server.js (Our server is running here)
+2. app.js (All configurations such as middlewares, mounting routes etc.)
+3. routes Folder (All routes/subapp)
+4. Controller Folder (All logic or handler function of routes are here)
+
+
+Always follow this standard
+
+Now to summarise let me show you the code in each file
+
+// 1. In Server.js
+
+const app = require('./app')
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+
+// 2. app.js
+
+const express = require('express');
+const morgan = require('morgan');
+const tourRouter = require('./routes/tourRoutes')
+const userRouter = require('./routes/userRoutes')
+
+const app = express();
+
+// middlewares
+app.use(morgan('dev'));
+
+app.use(express.json());
+
+app.use((req, res, next) => {
+  req.requestTime = new Date().toISOString();
+  next();
+});
+
+// Mounting the routes
+app.use('/api/v1/tours', tourRouter);
+app.use('/api/v1/users', userRouter);
+
+module.exports = app;
+
+
+// 3. In Route Folder
+//In tourRoute.js
+
+const express = require('express');
+const tourController = require('../controllers/tourController');
+const router = express.Router();
+
+router.route('/')
+  .get(tourController.getAllTours)
+  .post(tourController.createTour);
+router.route('/:id')
+  .get(tourController.getTour)
+  .patch(tourController.updateTour)
+  .delete(tourController.deleteTour);
+
+module.exports = router;
+
+//In userRoute.js
+
+const express = require('express');
+const userController = require('../controllers/userController');
+const router = express.Router(); //Its a convention to call it router instead of userRouter
+
+router.route('/')
+  .get(userController.getAllUsers)
+  .post(userController.createUser);
+router.route('/:id')
+  .get(userController.getUser)
+  .patch(userController.updateUser)
+  .delete(userController.deleteUser);
+
+module.exports = router;
+
+
+// 4. In Controller folder
+// tourController.js
+const fs = require('fs');
+const tours = JSON.parse(
+  fs.readFileSync(`${__dirname}/../dev-data/data/tours-simple.json`)
+);
+
+exports.getAllTours = (req, res) => {
+  console.log(req.requestTime);
+  res.status(200).json({
+    status: 'success',
+    requestAt: req.requestTime,
+    results: tours.length,
+    data: {
+      tours: tours,
+    },
+  });
+};
+
+exports.getTour = (req, res) => {
+  console.log(req.params);
+  const id = req.params.id * 1;
+
+  const tour = tours.find((el) => el.id === id);
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID',
+    });
+  }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: tour,
+    },
+  });
+};
+
+exports.createTour = (req, res) => {
+  console.log(req.body);
+  const newId = tours[tours.length - 1].id + 1;
+  const newTour = Object.assign({ id: newId }, req.body);
+  tours.push(newTour);
+
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(tours),
+    (err) => {
+      res.status(201).json({
+        status: 'success',
+        data: {
+          tour: newTour,
+        },
+      });
+    }
+  );
+};
+
+exports.updateTour = (req, res) => {
+  if (req.params.id * 1 > tours.length) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID',
+    });
+  }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: '<update tour here>',
+    },
+  });
+};
+
+exports.deleteTour = (req, res) => {
+  if (req.params.id * 1 > tours.length) {
+    return res.status(204).json({
+      status: 'fail',
+      message: 'Invalid ID',
+    });
+  }
+
+  res.status(204).json({
+    status: 'success',
+    data: null,
+  });
+};
+	
+
+// In userController.js
+
+exports.getAllUsers = (req, res) => {
+    res.status(500).json({
+      status: 'error',
+      message: 'This route is not yet defined',
+    });
+  };
+  exports.createUser = (req, res) => {
+    res.status(500).json({
+      status: 'error',
+      message: 'This route is not yet defined',
+    });
+  };
+  exports.getUser = (req, res) => {
+    res.status(500).json({
+      status: 'error',
+      message: 'This route is not yet defined',
+    });
+  };
+  exports.updateUser = (req, res) => {
+    res.status(500).json({
+      status: 'error',
+      message: 'This route is not yet defined',
+    });
+  };
+  exports.deleteUser = (req, res) => {
+    res.status(500).json({
+      status: 'error',
+      message: 'This route is not yet defined',
+    });
+  };
+
+
+**************Param middleware function
+
+Param middle ware is a middleware which is run only for certain parameters in our URL. Here in our case we have id in our URL.
+Since we have created our routes folder now
+// In tourRoute.js
+
+const router = express.Router();
+router.param('id',(req, res, next, val)=>{
+ console.log(`The Value of Id is: ${val}`);
+  if (req.params.id * 1 > tours.length) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID',
+    });
+  }
+  next();
+}
+
+
+This req.param takes two argument one is our string which is in the URL (In our case its Id it will not work if we miss spelled Id). The second argument is callback function. The val argument in callback will have access to the value of id which the user is putting in the URL. 
+
+In our app we are using this middleware for checking the id whether its valid or not. This middleware will run when the a url with any id will be called. 
+It is standar to define the logic of callback function in controller function.
+
+const tourController = require('../controllers/tourController');
+router.param('id', tourController.checkID);
+
+
+
+We are using middlewares instead of simple functions the reason behind this fact is that its a philosophy of express to use middlewares as much as we can.
+
+
+*************Chaing middleware
+
+One thing I would like to clear is that in our controller.js getTour, createTour all these functions are also middlewares.
+
+
+Okay so this is how you chain or connect your middlware.
+
+// In tourRoute.js
+const express = require('express');
+const tourController = require('../controllers/tourController');
+const router = express.Router();
+
+router.param('id', tourController.checkID);
+
+router.route('/')
+  .get(tourController.getAllTours)
+  .post(tourController.checkBody, tourController.createTour); //Here checkBody is our middleware
+router.route('/:id')
+  .get(tourController.getTour)
+  .patch(tourController.updateTour)
+  .delete(tourController.deleteTour);
+
+module.exports = router;
+
+// Here syntax router.route.post(middlware, 2nd Middlware)
+router.route.post(tourController.checkBody, tourController.createTour); //Here checkBody is our middleware which is responsible for checking name and price in the incoming data from the user before creating the new user.
+remember that in our controller.js getTour, createTour all these functions are also middlewares.
+
+// In tourController.js
+exports.checkBody = (req, res, next) => {
+  if (!req.body.name || !req.body.price) {
+    return res.status(400).json({
+      status: 'fail',
+      message: 'Missing Name or price',
+    });
+  }
+  next();
+};
+
+// Here if the confition is true then it will send back the response and will complete the req-res cycle. In case of false confition code inside if condition will not run and it will call the next() to call the next middleware that is createTour in this case.
+
+
+
+*****************Accessing static files from our local machine using a new middleware
+
+app.use(express.static(`${__dirname}/public`));
+
+
+now go to the browser
+http://127.0.0.1:3000/overview.html
+
+or
+
+http://127.0.0.1:3000/filename
+
+
+*******Environmental variable
+how to check in which environment we are currently working in
+
+
+console.log(app.get('env'));
+
+or
+
+console.log(process.env) //process is a global core module in node js
+
+In terminal if you want to set your env you can do this
+
+> NODE_ENV=development npm run server.js
+
+once the development is completed change it to production.. But if there are several env variables then its not a  good idea to set them in terminal so instead of doing this make a configuration file called config.env
+
+**** Connecting .env file
+
+npm install dotenv
+
+// In server.js
+const dotenv = require('dotenv');
+dotenv.config({path: './config.env'})
+define these two line on very top of your file
+
+console.log(process.env); // To confirm the connection of env variables
+
+
+***************ES lint
+
+ES lint is basically a program which continuously scans our code for errors and bad practices. We use Prittier but we will also configure it with our es lint to highlight the errors. ES lint is for improve the quality of code.
+
+Install ES lint and prettier extension in vscode
+
+then 
+$ npm install eslint prettier eslint-config-prettier eslint-plugin-prettier eslint-config-airbnb eslint-plugin-node eslint-plugin-import eslint-plugin-jsx-a11y eslint-plugin-react --save-dev
+
+
+
+// In .eslintrc.json
+{
+  "extends": ["airbnb", "prettier", "plugin:node/recommended"],
+  "plugins": ["prettier"],
+  "rules": {
+    "prettier/prettier": [
+      "error",
+      {
+        "endOfLine": "auto"
+      }
+    ],
+    "spaced-comment": "off",
+    "no-console": "warn",
+    "consistent-return": "off",
+    "func-names": "off",
+    "object-shorthand": "off",
+    "no-process-exit": "off",
+    "no-param-reassign": "off",
+    "no-return-await": "off",
+    "no-underscore-dangle": "off",
+    "class-methods-use-this": "off",
+    "prefer-destructuring": ["error", { "object": true, "array": false }],
+    "no-unused-vars": ["error", { "argsIgnorePattern": "req|res|next|val" }]
+  }
+}
+
+
+// In .prettierrc
+
+{
+  "singleQuote": true
+}
+
+
+
+	
