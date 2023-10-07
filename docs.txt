@@ -1328,4 +1328,223 @@ $ npm install eslint prettier eslint-config-prettier eslint-plugin-prettier esli
 
 
 
+************************MongoDB
+its a NoSql database.
+In Mongo DB each database can have more than once collection. 
+Collections are like tables. And each collection contains document. 
+By documents you can say Rows. Each row would be for post, user, reviews etc.
+The good thing is that Document (rows) have JOSN like format but it is called BSON (Here all values will have some data type such as boolean, string, etc.)
+
+
+Document based: MongoDB is a document based database it stores data in the form of document instead of rows as in traditional databases.
+Scalabilty: Very easy to distribute data across multiple machine as your user and amount of data grows.
+Flexible: No document data Schema required so each document can have different number and types of fields.
+
+In relational data bases the data is always normalise.
+
+In BSON:
+
+1. maximum size of each document is 16MB
+2. Each document has a unique id which act as a primary key for each document.
+
+
+**********Installing mongoDB
+
+Go to mongoDB official website --> Products --> MongoDB Community Server --> Download
+
+Dont forget to create data and db folder inside C
+
+Now arfter installing  the setup go to c drive --> program files --> mongoDB--> server --> 7.0 --> bin 
+
+and copy its path 
+
+now go to environemental variables of your windows and add this path there.
+After adding this 
+
+open your powershell or cmd
+
+**********How to run local MongoDB server from cmd or powershell and how to connet it with DB
+open your powershell or cmd
+
+> mongod.exe
+
+and now open another terminal and run > mongos.exe
+
+************Connecting to a local database with cmd or powershell
+open cmd and run
+
+> mongosh.exe
+
+> use databaseName
+// here use commnand is used to switched b/w db if db doesnt exist it will create that automatically
+
+Since we know that in mongoDB every document (row) is inside the a collection (table) so this means we first have to create collections then documents
+
+** Adding data into database
+
+>db.tours.insertOne({name:"The Forest Hiker", price: 297, rating: 4.7})
+syntax: db.collectionName.function(data in BSON format)
+
+insertOne is used to insert one document and insertMany is used to insert more than one documents
+
+*** Checking the created collection
+>db.tours.find()
+
+** checking all databases we created
+> Show dbs
+
+*** checking all collections
+
+> show collections
+
+******Quiting the mongoshell
+
+> quit()
+
+
+************Inserting multiple documents in single collection
+>  db.tours.insertMany([{name: "The Sea Explorer", price: 497, rating: 4.8}, {name: "The Snow Adventure", price:997, rating: 4.9, difficulty: "easy"}])
+
+This is how you enter multiple document in a single collection. 
+**NOTE**: Always remember we are entering more than one document in the form of arrays. and Mongo DB understand double quote only.
+
+*************Finding a specific object or document**************
+> db.tours.find({name: "The Snow Adventure"})
+
+MongoDb is case sensitive so incase of wrong spelling or case sensitive mistake it will show nothing.
+
+> db.tours.find({price: {$lt:500}})
+
+here we are finding objects having price less than 500. Here $ sign means mongo operator. You write your expressions in curly brackets {}
+and same case goes for greater than operator you use {$gt:500} 
+
+lt = less than
+gt = greater than
+lte= less than equal
+gte = greater than equal
+
+
+*********Using AND Operator
+> db.tours.find({ price: {$lt:500}, rating: {$gte:4.8} })
+
+Here comman is acting as AND operator. It is by default.
+
+************Using OR operator
+
+> db.tours.find({$or: [{price:{$lt:500} },{rating: {gte:4.8} }] })
+ This is how you find objects in mongoDB using OR operator.
+
+>db.tours.find({$or: [{price:997 },{rating: {gte:800} }] }, {name:1})
+
+Here {name:1} means name true. Means The output will include only name field.
+
+**********Updating the data/document
+
+> db.tours.updateOne({name: "The Snow Adventure"}, {$set: {price: 597} })
+
+syntax:  db.tours.updateOne(filter Object, {$set: {property:value} })
+
+here filter object means the data with the help of you will select your object.
+
+
+*********Adding new field in the existing document using updatingMany
+
+> db.tours.updateMany({price: {$gt:500},rating:{$gte:4.8}}, {$set: {premium: true}})
+
+by using this {price: {$gt:500},rating:{$gte:4.8}} we are selecting multple objects in between the given range and then the second argument is here to set the value.
+
+**************Delete Data
+
+>db.tours.deleteOne({price:497})
+
+>db.tours.deleteMany({rating:{$lt:4.8}}) 
+This is for deleting all objects have rating less than 4.8
+
+>db.tours.deleteMany({})
+
+
+************Using MongoDB Compass
+
+Simply open your MongoDB compass and click on new connection and wihtout filling anything click on connect button
+make sure your Mongod.exe server is running on backend in cmd or powershell.
+
+you can use above queries in mongoDB compass filter field
+
+*********Hosting a database
+
+While developing apps we do not use actual local data bases for our use instead we host our remote database on as service called Atlas. Which is owned my the same company who own MongoDB.
+Cluster is basically like an instance of our database.
+
+Simply go to mongo login and login your account create a new project and add user and add IP address
+
+Now to connect you will get a connection URL like mongodb+srv://<USERNAME>:<PASSWORD>@clustername.mongodb.net/test
+
+
+
+****************Getting access to remote Database using CMD
+To access a MongoDB Atlas database from your Windows Command Prompt, you can use the `mongosh` utility, which is the MongoDB Shell. Here are the steps to connect to your remote MongoDB Atlas database:
+
+1. Open your Windows Command Prompt:
+   - Press `Win + R`, type `cmd`, and press Enter.
+
+2. Navigate to the directory where `mongosh.exe` is located if it's not in your system's PATH:
+   - Use the `cd` command to change the directory. For example, if `mongosh.exe` is in the "C:\Program Files\MongoDB\Tools\100\bin" directory, you can navigate to it using:
+     ```
+     cd "C:\Program Files\MongoDB\Tools\100\bin"
+     ```
+
+3. Now, you can connect to your MongoDB Atlas cluster using the following command:
+   ```
+   mongosh "mongodb+srv://<USERNAME>:<PASSWORD>@clustername.mongodb.net/test" --authenticationDatabase admin
+   ```
+   Replace `<USERNAME>` and `<PASSWORD>` with your MongoDB Atlas cluster username and password. Also, replace `clustername` with the name of your MongoDB Atlas cluster.
+
+4. Press Enter, and `mongosh` will connect to your MongoDB Atlas cluster.
+
+For example, if your MongoDB Atlas username is "myuser," your password is "mypassword," and your cluster name is "mycluster," the command would look like this:
+
+```shell
+mongosh "mongodb+srv://myuser:mypassword@mycluster.mongodb.net/test" --authenticationDatabase admin
+```
+
+After running this command, you should be connected to your MongoDB Atlas cluster and can start interacting with your remote database.
+
+
+***************In Summary of MongoDB
+
+There are two servers one is local that is on your computer and other one is remote that is on Atlas
+To get access to your local server you simply have to run mongod.exe in your terminal (remember you have added the path of bin directory of mongoDB in your windows environmental variables)
+After running this mongod.exe you have created a local server in your PC. To get access to this locally created Database you simply have to open another terminal and run mongosh.exe
+Congrats. You are done!
+
+
+For Remote database: You first have to host your database to remote server that is Atlas. Simple go to mongoDB Atlas login and create database there and get its URL
+Now open your terminal and run mongosh "mongodb+srv://<USERNAME>:<PASSWORD>@clustername.mongodb.net/test" 
+Congrats, You are done!
+
+************How to connect your database with your app
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	
