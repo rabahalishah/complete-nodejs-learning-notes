@@ -584,7 +584,7 @@ Always remember, you can read data from Client side using endpoint/URL defined w
 ***********REST API architecture
 REST stands for Representaion States Transfer, It is basically a way of building API logic so they are easy to consume for the user. In order to build APIs following the principle of REST architecture we have to follow some rules:
 1. Separate API into logical resources.
-2. Expose structured, resource-based URLs
+2. Expose/Show structured, resource-based URLs
 3. Use HTTP methods
 4. Send data as JSON format
 5. Must be stateless
@@ -592,7 +592,7 @@ REST stands for Representaion States Transfer, It is basically a way of building
 Let understand all 5 principles one by one:
 1. Separate API into logical resources: Here resource means any kind of information such as reviews, tours etc. First separate all the information in logical way. Here logical means name shoudl make sense.
 
-2. Expose structured & 3. Use HTTP methods, resource-based URLs: The address of our URLs should be resource based and  do not include any action in their name such as /getNewTour, /addNewTour, /deleteTour, /updateTour etc. Don't do this. It should not be look like this
+2. Expose structured & 3. Use HTTP methods, resource-based URLs: The address of our URLs should be resource based and do not include any action in their name such as /getNewTour, /addNewTour, /deleteTour, /updateTour etc. Don't do this. It should not be look like this
 so instead of this our URLs should look like this:
 
 GET   /tours  (for getting the tours)
@@ -1524,27 +1524,371 @@ Congrats, You are done!
 
 ************How to connect your database with your app
 
+Connecting local database:
+you can use the below URL for connecting to the local database
+
+
+mongodb://localhost:27017/natours
+
+syntax:
+mongodb://localhost:27017/DatabaseName
+
+
+Connecting to hosted database:
+
+mongodb+srv://rabahalishah:<PASSWORD>@cluster0.vsioz83.mongodb.net/DATABASENAME?retryWrites=true&w=majority
+
+For talking to the database there are several drivers we are gonna use Mongoose.
+
+npm install mongoose
+
+********************Using mongoose driver to connect with hosted database
+
+// In config.env file:
+NODE_ENV=development
+PORT=3000
+DATABASE_PASSWORD=123456
+DATABASE=mongodb+srv://rabahalishah:<PASSWORD>@cluster0.vsioz83.mongodb.net/natours?retryWrites=true&w=majority
+DATABASE_LOCAL=mongodb://localhost:27017/natours
+
+
+// In server.js
+const DB = process.env.DATABASE.replace(
+  '<PASSWORD>',
+  process.env.DATABASE_PASSWORD,
+);
+
+// here simply getting the url from env file
+
+mongoose
+  .connect(DB, {
+    useNewUrlParser: true,
+    useCreateIndex: true,
+    useFindAndModify: false,
+  })
+  .then((con) => {
+    console.log(con.connections);
+    console.log('Database Connected Successfully');
+  });
+
+
+// here mongoose.connect returns a promise which have access to connection object which contains the information about our connection
+
+
+*************What is mongoose
+
+Before getting started lets discuss what is mongoose
+Mongoose is ODM (Object data modelling) library for mongoDB and Node.js. It is build on higher level of abstraction. As express is layer on nodeJs similarly mongoose is a layer on MongoDB.  There are several mongoDB driver but we prefer mongoose because of its flexibility and easier development experience. 
+
+Features of mongoose: 
+1. Shemas to model data and relationships.
+2. Easy Data validation.
+3. Simple query API
+4. Middlerwares etc.
+
+Mongoose Schema: Where we model our data, by describing the structure of the data, default values and validations.
+Mongoose model: its a wrapper for the schema, providing an interface to the database for CRUD operations.
 
 
 
+***********Creating simple schema and model
+
+we will creating our schema and model in sevre.js but we wil shift it in the other directory later.
+
+This is how we create schemas in mongoDB using mongoose:
+
+
+const tourSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'A tour must have a name'],
+    unique: true,
+  },
+  rating: {
+    type: Number,
+    default: 4.5,
+  },
+  price: {
+    type: Number,
+    required: [true, 'A tour must have a price'],
+  },
+});
 
 
 
+// Here required option is a validator and the array in required: [true, 'A tour must have a name'], here the second argument is the message which is gonna appear in case the user do not enter the name of tour
+
+
+NOTE: One thing that you must notice here is that in case the use is sending the information which is not in our schemas then in this case we that data will be simply ignored and only that data will be allowed to go into the database which is included in our schemas.
+********Now creating a model out of above schema
+
+const Tour = mongoose.model('Tour', tourSchema);
+
+This is how we create model of our schema. Remember the convention as the name of the model starts with captital letter. Model is nothing its simple our collection.
+
+// Here 'Tour' is the name of our collection but in database it will save as 'tours' (plural) instead of 'Tour'. So don't be confused with it.
+
+
+***********Creating documents and testing the model
+One thing you have to remember is that working with mongoDB model is same as working with javascript classes. For example we create instances of the object to create a new object.
+same case will go here as we have created our Tour Model This will act as object now to create a new document we will create its instance using "new" as we do in Classes
+
+so 
+
+const testTour = new Tour({
+  name: 'The Forest Hiker',
+  rating: 4.7,
+  price: 497,
+})
+  .save()
+  .then((doc) => {
+    console.log('doc: ', doc);
+  })
+  .catch((err) => {
+    console.log('Error', err);
+  });
+
+
+// here testTour is our new instance of Tour model so this means we can apply all methods on it which we can apply on Tour Model. Thats why we can use save() method to save it.
+since save() method returns a promise so we are handling that too.
+
+Btw there is another way of creating the document.
+
+Tour.create({
+  name: 'The Forest Hiker',
+  rating: 4.7,
+  price: 497,
+}).then(doc=>{
+  console.log(doc)
+})
+
+The second one is the easy one
+
+
+*************Introduction to Backend Architecture, MVC types of logic and more
+
+
+MVC (Model view controller) Architecture.
+
+Model: This layer concerned with the Application data and business logic
+Controller: This layer is responsible for handling user http requests, sending responses and much more.
+View: This layer is used when we are doing SSR or for presentational logic.
+
+Application logic vs business logic:
+
+Remember its always impossible to completely separate the business and application logic as these logic overlaps to some extend. We try our best to keep the application logic in our controller and business logic in our model 
+
+Application logic:
+Its a code which is more concerned with the working of application such as dealing with request-response cycle. And more technical stuff.
+Its also works as the bridge between model and view layer.
+
+Business logic:
+Its a code which is more concerned with the business things to solve the problem which is set out to solve such as showing and selling tours in our case.
+This logic is directly related to our business rules and needs.
+For example:
+1. creating new tours in database
+2. checking if the user is valid
+3. validating user input data
+4. Ensuring only users who bought a tour can review it.
+
+
+****************Creating a new document with mongoose in via post request
+exports.createTour = async (req, res) => {
+  try {
+    console.log('Req.body', req.body);
+    const newTour = await Tour.create(req.body);
+    console.log('New tour', newTour);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        tour: newTour,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Invalid data sent!',
+    });
+  }
+};
 
 
 
+******************Reading data from database with mongoose
+
+exports.getAllTours = async (req, res) => {
+  try {
+    const tours = await Tour.find();
+
+    res.status(200).json({
+      status: 'success',
+      results: tours.length,
+      data: {
+        tours: tours,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+exports.getTour = async (req, res) => {
+  try {
+    const tour = await Tour.findById(req.params.id);
+    // Tour.findOne({_id: req.params.id})
+    res.status(200).json({
+      status: 'success',
+      data: {
+        tour: tour,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+
+NOTE: we are entering the id of the user in the url from the postman
+GET 127.0.0.1:3000/api/v1/tours/652263f6f27ee20d54b43c82
 
 
 
+***************Updating the data with mongoose
+
+exports.updateTour = async (req, res) => {
+  try {
+    const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    res.status(200).json({
+      status: 'success',
+      data: {
+        tour: tour,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+
+POSTMAN:  PATCH  127.0.0.1:3000/api/v1/tours/652263f6f27ee20d54b43c82
+
+
+NOTE: const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+
+findByIdAndUpdate() this method take two arguments one id and other is the changes that we want to change, and third is the option object where we can define some options such as
+here new: true means this method will return a new object and runValidators: true means after updating the object the validators must be run to check the validation once again.
+
+IMPORTANT: The body we have sent from the postman was{"price":500} Since the HTTP method  was PATCH instead of PUT thats this method only changed the price and returned the new object with new price. Whereas if you have used PUT method here then by sending the body like { "price":500 } then the put method was completely going to replace the existing object with {"price":500} and we will get {"price":500} only
 
 
 
+**************Deleting data using mongoose
+
+exports.deleteTour = async (req, res) => {
+  try {
+    await Tour.findByIdAndRemove(req.params.id);
+    res.status(204).json({
+      status: 'success',
+      data: null,
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+// here its a standard practice that we do not send back the promise in case of deleting any object
 
 
+*************Modeling our Tour Data
+const tourSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'A tour must have a name'],
+    unique: true,
+    trim: true,
+  },
+  duration: {
+    type: Number,
+    required: [true, 'A tour must have a duration'],
+  },
+  maxGroupSize: {
+    type: Number,
+    required: [true, 'A tour must have a group size'],
+  },
+  difficulty: {
+    type: String,
+    required: [true, 'A tour must have a difficulty'],
+  },
+  ratingsAverage: {
+    type: Number,
+    default: 4.5,
+  },
+  ratingsQuantity: {
+    type: Number,
+    default: 0,
+  },
+  price: {
+    type: Number,
+    required: [true, 'A tour must have a price'],
+  },
+  priceDiscount: Number,
+  summary: {
+    type: String,
+    trim: true, 
+    required: [true, 'A tour must have a summary'],
+  },
+  description: {
+    type: String,
+    trim: true,
+  },
+  imageCover: {
+    type: String,
+    required: [true, 'A tour must have a cover Image'],
+  },
+  images: [String],
+  createdAt: {
+    type: Date,
+    default: Date.now(),
+  },
+  startDates: [Date],
+});
 
 
+//Here Trim will remove spaces in the start and end of the string
 
 
+Our input body while making HTTP POST Request
+{
+    "name": "The Snow Adventurer",
+    "duration": 4,
+    "maxGroupSize": 10,
+    "difficulty": "difficult",
+    "ratingsAverage": 4.5,
+    "ratingsQuantity": 13,
+    "price": 997,
+    "summary": "Exciting adventure in the snow with snowboarding and skiing",
+    "description": "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua, ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum!\nDolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur, exercitation ullamco laboris nisi ut aliquip. Lorem ipsum dolor sit amet, consectetur adipisicing elit!",
+    "imageCover": "tour-3-cover.jpg",
+    "images": ["tour-3-1.jpg", "tour-3-2.jpg", "tour-3-3.jpg"],
+    "startDates": ["2022-01-05,10:00", "2022-02-12,10:00", "2023-01-06,10:00"]
+  }
 
-
-	
