@@ -1980,7 +1980,1184 @@ Using this feature we can create some logic
 
 
 *************Making the API Better filtering
+Making the sorting better for getAllTour Route
+We are doing it so as user can apply queries to our API
+
+// In tourController.js
+
+exports.getAllTours = async (req, res) => {
+  try {
+    const queryObj = { ...req.query };
+    const excludedFields = ['page', 'sort', 'limit', 'fields'];
+    excludedFields.forEach((el) => delete queryObj[el]); // excluding some keywords
+    console.log('req.query: ', req.query);
+    console.log('queryObj: ', queryObj);
+    const query = await Tour.find(queryObj);
+    // here we are passing the queryObj
+    const tours = await query;
+
+
+
+
+    res.status(200).json({
+      status: 'success',
+      results: tours.length,
+      data: {
+        tours: tours,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+NOTE: here queryObj is a hard copy not a shallow copy. Means if we do any changes in the queryObj object it will not
+effect the req.query Obj This is the most important trick to create a hard copy in JS.
+If we directly assign as const queryObj = req.query then as we know objects are references in JS not the actual object.
+So in order to create a hard or deep copy we use destruturing instead of directly assigning to it a variable.
+
+Also note that we do not want our user to go to the pages using query string as "127.0.0.1:3000/api/v1/tours?duration=5&difficulty=easy&page=2" so in order to exclude some key words that we do not want our API should have we are excluding it using loop over them.
+
+**********Making API better filtering advance
+
+here in this section we will deal with some more complex queries such as greater than, less than, greater than equal and less than equal.
+
+As we all know in mongoDB we do query to find such greater or less is this way
+// db.tours.find({duration: {$gte:5}})
+
+and in url we can do the same in this way:
+127.0.0.1:3000/api/v1/tours?duration[gte]=5
+
+In square brackets we write [operators]
+
+so in our JS code we have to write a logic to deal with gte, lte, gt and lt operators to more advance our filtering query.
+
+127.0.0.1:3000/api/v1/tours?duration[gte]=5
+whenever the user hit the url the above query strintg the output of req.query object would be:
+
+{duration: {gte:5}}
+
+the only thing which is missing here is the dollar sign. So lets add that
+
+    const queryObj = { ...req.query }; //creating deep copy
+
+    const excludedFields = ['page', 'sort', 'limit', 'fields'];
+    excludedFields.forEach((el) => delete queryObj[el]); // deleting the unwanted keywords
+    console.log('req.query: ', req.query);
+    console.log('queryObj: ', queryObj);
+
+    // here we are doing some advance filtering
+    let queryStr = JSON.stringify(queryObj);
+    queryStr = queryStr.replace(/\b(gte|gt|lt|lte)\b/g, (match) => `$${match}`); 
+    console.log('queryStr: ', JSON.parse(queryStr));
+
+    const query = await Tour.find(JSON.parse(queryStr));
+    // here we are passing the queryObj which is a deep copy
+
+    const tours = await query;
+
+// here we are using regular expression to match the words
+the logic we are using is simple we are simple replacing the word with the same word but having a dollar $ sign with it.
+
+JSON.stringify and JSON.parse both are work opposite to eachother.
+
+
+**************Making API better Sorting 
+
+If user hit "127.0.0.1:3000/api/v1/tours?duration[gte]=5&difficulty=easy&sort=price"
+this URL will not work as we have excluded the word sort from the url so now lets add it
+
+using this req.query.sort we can get the value of sort which the user has passed in the url
+
+    let query = Tour.find(JSON.parse(queryStr));
+    Tour.find() method returns a query object or data which this method has found.
+
+    // Sorting
+       if (req.query.sort) {
+      const sortBy = req.query.sort.split(',').join(' ');
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort('-createdAt');
+      // This is for default sorting when user does not specify any sorting
+    }
+
+NOTE: We are not over writting the above queries. We are making a chain or you can say we are passing our URL through different layers so that It can hadle all cases
+
+
+
+*******************Making API better limiting field
+It is always a good practice to receive as little data as possible from the user so that we can reduce the bandwith. 
+
+127.0.0.1:3000/api/v1/tours?duration[gte]=5&fields=name,price,duration
+
+here the user is specifying only specific fields
+
+we can deal with this query in the similar way as we did in sorting
+
+   if (req.query.fields) {
+        const fields = req.query.fields.split(',').join(' ');
+        query = query.select(fields);
+      } else {
+        query = query.select('-__v');
+      }
+
+// here  you have noticed that there is a negative sign with __v field. In this case __v is field created by the mongoDB in the Database automatically we do not want our user to see this unnecessary info so using select method -ve means exclude or unselect.
+
+NOTE: In any case you want any specific info which is in your schema and you want to hide it from access you can simply use select:false property in the schema as:
+
+  createdAt: {
+    type: Date,
+    default: Date.now(),
+    select: false,
+  }
+
+now the createdAt field will not be displayed
+
+
+****************Making API Better pagination
+The amount of data per page we want to limit
+  // Pagination
+    const page = req.query.page * 1 || 1; //multiplying by 1 to convert string into a number
+    const limit = req.query.limit * 1 || 100;
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+    // Below we are checking that a page does exists or not
+    if (req.query.page) {
+      const numTour = await Tour.countDocuments();
+      if (skip >= numTour) throw new Error('This page does not exists');
+    }
+
+127.0.0.1:3000/api/v1/tours?duration[gte]=5&page=1&limit=3
+
+********Making API better Aliasing
+So let assume that the user wants to get the top 5 cheap tour then the user must have to enter the query like below:
+/limit=5&sort=-ratingsAverage,price
+
+so in order to make it simple and more easy to write we will use alias for top 5 cheap tours
+
+// In tourRouter.js
+router
+  .route('/top-5-cheap')
+  .get(tourController.aliasTopTours, tourController.getAllTours);
+
+created a new route which runs a middleware called aliasTopTours
+
+// In tourController.js
+// pre-filling the query string
+exports.aliasTopTours = (req, res, next) => {
+  req.query.limit = '5';
+  req.query.sort = '-ratingsAverage,price';
+  req.query.fields = 'name,price,ratingsAverage,summary,difficulty';
+  next();
+};
+
+
+Here we are prefilling our query so that our link will look like this 
+
+127.0.0.1:3000/api/v1/tours/top-5-cheap
+
+behind the scenes our query will be 
+
+127.0.0.1:3000/api/v1/tours/limit=5&sort=-ratingsAverage,price&fields=name,price,ratingsAverage,summary,difficulty
+
+
+*************Summary
+exports.getAllTours = async (req, res) => {
+  try {
+     // here queryObj is a hard copy not a shallow copy. Means if we do any changes in the queryObj object it will not
+     //effect the req.query Obj This is the most important trick to create a hard copy in JS.
+     // If we directly assign as const queryObj = req.query then as we know objects are references in JS not the actual object.
+     // So in order to create a hard or deep copy we use destruturing instead of directly assigning to it a variable.
+
+    const queryObj = { ...req.query };
+    const excludedFields = ['page', 'sort', 'limit', 'fields'];
+     excludedFields.forEach((el) => delete queryObj[el]);
+     console.log('req.query: ', req.query);
+
+     // Doing some advance filtering
+     let queryStr = JSON.stringify(queryObj);
+     // here we are passing the queryObj which is a deep copy
+     queryStr = queryStr.replace(/\b(gte|gt|lt|lte)\b/g, (match) => `$${match}`);
+
+     let query = Tour.find(JSON.parse(queryStr));
+
+     Sorting
+
+    if (req.query.sort) {
+      const sortBy = req.query.sort.split(',').join(' ');
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort('-createdAt');
+      // This is for default sorting when user does not specify any sorting
+
+      if (req.query.fields) {
+        const fields = req.query.fields.split(',').join(' ');
+        query = query.select(fields);
+      } else {
+        query = query.select('-__v');
+      }
+    }
+    // Pagination
+    const page = req.query.page * 1 || 1; //multiplying by 1 to convert string into a number
+    const limit = req.query.limit * 1 || 100;
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+    // Below we are checking that a page does exists or not
+    if (req.query.page) {
+      const numTour = await Tour.countDocuments();
+      if (skip >= numTour) throw new Error('This page does not exists');
+    }
+    const tours = await query;
+
+    res.status(200).json({
+      status: 'success',
+      results: tours.length,
+      data: {
+        tours: tours,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+
+********Refractoring the code using classes
+
+Now its time to make this features code in the separate folder so that we could use it in other code as well
+
+make a directory namely "utils" and inside that folder create a file called "apiFeatures.js"
+
+// In apiFeatures.js
+
+class APIFeatures {
+  constructor(query, queryString) {
+    this.query = query; // query is the data present in Tour model i.e Tour.find()
+    this.queryString = queryString; //queryString is a query which coming from express
+  }
+
+  filter() {
+    // here this.queryString is equal to req.query
+    // here queryObj is a hard copy not a shallow copy. Means if we do any changes in the queryObj object it will not
+    //effect the req.query Obj This is the most important trick to create a hard copy in JS.
+    // If we directly assign as const queryObj = req.query then as we know objects are references in JS not the actual object.
+    // So in order to create a hard or deep copy we use destruturing instead of directly assigning to it a variable.
+
+    const queryObj = { ...this.queryString };
+    const excludedFields = ['page', 'sort', 'limit', 'fields'];
+    excludedFields.forEach((el) => delete queryObj[el]);
+    // console.log('req.query: ', req.query);
+
+    // Doing some advance filtering
+    let queryStr = JSON.stringify(queryObj);
+    // here we are passing the queryObj which is a deep copy
+    queryStr = queryStr.replace(/\b(gte|gt|lt|lte)\b/g, (match) => `$${match}`);
+
+    this.query = this.query.find(JSON.parse(queryStr));
+
+    return this;
+  }
+
+  sort() {
+    if (this.queryString.sort) {
+      const sortBy = this.queryString.sort.split(',').join(' ');
+      this.query = this.query.sort(sortBy);
+    } else {
+      this.query = this.query.sort('-createdAt');
+      // This is for default sorting when user does not specify any sorting
+    }
+    return this;
+  }
+
+  limitFields() {
+    if (this.queryString.fields) {
+      const fields = this.queryString.fields.split(',').join(' ');
+      this.query = this.query.select(fields);
+    } else {
+      this.query = this.query.select('-__v');
+    }
+    return this;
+  }
+
+  paginate() {
+    const page = this.queryString.page * 1 || 1; //multiplying by 1 to convert string into a number
+    const limit = this.queryString.limit * 1 || 100;
+    const skip = (page - 1) * limit;
+    this.query = this.query.skip(skip).limit(limit);
+
+    return this;
+  }
+}
+
+module.exports = APIFeatures;
+
+
+we have replaced req.query with this.queryString and query with this.query
+1. here query is the data present in Tour model i.e Tour.find()
+2. queryString is a query which coming from express i.e req.query
+
+
+// In tourController.js
+
+const Tour = require('./../models/tourmodel');
+
+ const features = new APIFeatures(Tour.find(), req.query)
+      .filter()
+      .sort()
+      .limitFields()
+      .paginate();
+    const tours = await features.query;
+
+// Here we are simply creating a new instance of APIFeature class and applying methods on it which we have created in original APIFeature class.
+
+*************Aggregartion pipeline matching and grouping
+
+The Idea is that all our document will pass through a collection of processes such as calculating avgs etc.
+we will make this pipeline.
+
+
+Aggregation pipeline is basically a mongoDB feature which we will access with the help of Mongoose.
+
+The data will pass through the multiple stages and that will transform the data into an aggregated result.
+
+// In toursController.js
+exports.getTourStats = async (req, res) => {
+  try {
+    const stats = await Tour.aggregate([
+      {
+        $match: { ratingsAverage: { $gte: 4.5 } },
+      },
+      {
+        $group: {
+          _id: { $toUpper: '$difficulty' },
+          // _id: '$ratingsAverage',
+          numTours: { $sum: 1 },
+          numRating: { $sum: '$ratingsQuantity' },
+          avgRating: { $avg: '$ratingsAverage' },
+          avgPrice: { $avg: '$price' }, // here price is the name of the field
+          minPrice: { $min: '$price' },
+          maxPrice: { $max: '$price' },
+        },
+      },
+      {
+        $sort: {
+          avgPrice: 1, // In sort object only those fields name will work which we have specified above in the group stage.
+        },
+      },
+ //     {
+ //       $match: { _id: { $ne: 'EASY' } },
+ //     },
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      data: { stats },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+// Here each object is stage. In this case we have made three stages:
+1. In first stage we are matching or you can say selecting
+2. In second stage we are grouping our data in terms of difficulty,
+3. we are sorting our data
+
+// In tourRoutes.js
+
+router.route('/tour-stats').get(tourController.getTourStats);
+
+
+// here we have created a separate route to get all the stats related to our tours.
+
+
+
+*********Solving a business problem using Aggregation Pipeline:
+The problem is to get the busiest month for natours company
+
+// In tourController.js
+
+exports.getMonthlyPlane = async (req, res) => {
+  try {
+    const year = req.params.year * 1;
+
+
+    const plan = await Tour.aggregate([
+      {
+        $unwind: '$startDates',
+      },
+      {
+        $match: {
+          startDates: {
+            $gte: new Date(`${year}-01-2021`),
+            $lte: new Date(`${year}-12-31`),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { $month: '$startDates' },
+          numTourStarts: { $sum: 1 },
+          tours: { $push: '$name' },
+        },
+      },
+      { $addFields: { month: '$_id' } },
+      {
+        $project: {
+          // project is used for hiding a field
+          _id: 0,
+        },
+      },
+      {
+        $sort: { numTourStarts: -1 }, //-1 for descending
+      },
+      {
+        $limit: 6, //This is just limiting our number of output documents
+      },
+    ]);
+    res.status(200).json({
+      status: 'success',
+      data: {
+        plan,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({
+      status: 'fail',
+      message: err,
+    });
+  }
+};
+
+
+// This is the aggregation pipe line. Here, "$unwind" Deconstructs an array field from the input documents to output a document for each element. Each output document is the input document with the value of the array field replaced by the element.
+
+
+// In tourRoutes.js
+router.route('/monthly-plan/:year').get(tourController.getMonthlyPlane);
+
+// The input url: 127.0.0.1:3000/api/v1/tours/monthly-plan/2021
+
+ouput: 
+{
+    "status": "success",
+    "data": {
+        "plan": [
+            {
+                "numTourStarts": 3,
+                "tours": [
+                    "The Forest Hiker",
+                    "The Sea Explorer",
+                    "The Sports Lover"
+                ],
+                "month": 7
+            },
+            {
+                "numTourStarts": 2,
+                "tours": [
+                    "The Sea Explorer",
+                    "The Park Camper"
+                ],
+                "month": 8
+            },
+            {
+                "numTourStarts": 2,
+                "tours": [
+                    "The Forest Hiker",
+                    "The Star Gazer"
+                ],
+                "month": 10
+            },
+            {
+                "numTourStarts": 2,
+                "tours": [
+                    "The Sea Explorer",
+                    "The City Wanderer"
+                ],
+                "month": 6
+            },
+            {
+                "numTourStarts": 2,
+                "tours": [
+                    "The Forest Hiker",
+                    "The Wine Taster"
+                ],
+                "month": 4
+            },
+            {
+                "numTourStarts": 2,
+                "tours": [
+                    "The City Wanderer",
+                    "The Star Gazer"
+                ],
+                "month": 3
+            }
+        ]
+    }
+}
+
+
+**************Virtual properties
+
+// In tourModel.js
+
+const tourSchema = new mongoose.Schema(
+  {
+   .....Our Schemas
+  },
+  {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: false },
+  },
+);
+// Here above in schema options we have set to show our created virtuals to true in case of JSON and to hide them in case of object.
+
+tourSchema.virtual('durationWeek').get(function () {
+  return this.duration / 7;
+});
+
+// here the virtual is a category which we specify when we do not want to store the information in the database but just want to
+// show. As it doesn't make sense to store the same info with different units. Now from schema options we can manage this virtual property. REMEMBER: we cannot use queries on virtuals as they are actually not a part of database.
+
+*************Document Middlerware
+
+In monsgoose we can create middleware which can run before and after an event. In mongoose they are often called pre or post Hooks.
+
+There are four types of middleware in mongoose
+1. Document
+2. Query
+3. Aggregate
+4. Model
+
+**Document Middleware
+Just like the virtual property we will define our document middle ware on our schema in model.js file
+
+// In model.js
+
+// DOCUMENT MIDDLEWARE: runs before .save() and .create()
+// This middleware will not work for .insertMany()
+tourSchema.pre('save', function (next) {
+  this.slug = slugify(this.name, { lower: true });
+  next();
+});
+
+tourSchema.pre('save', function (next) {
+  console.log('will save document');
+  next();
+});
+
+// DOCUMENT MIDDLEWARE: runs after the .save() and .create()
+tourSchema.post('save', function (doc, next) {
+  console.log('doc: ', doc);
+  next();
+});
+
+here this keyword is pointing towards the current document that is going to be saved
+NOTE: Dont forget to add slug : String in schemas
+
+
+**Query Middleware
+
+// IN model.js
+
+//QUERY MIDDLEWARE
+
+// tourSchema.pre('find', function (next) {
+//   this.find({ secretTour: { $ne: true } });
+//   next();
+// });
+// This query will not work for findOne, findOneAndUpdate etc.
+//To make it work for that we are using regular expressions
+tourSchema.pre(/^find/, function (next) {
+  this.find({ secretTour: { $ne: true } });
+
+  this.start = Date.now();
+  next();
+});
+// here this experssion /^find/ means that any query starting with find
+
+tourSchema.post(/^find/, function (docs, next) {
+  console.log(docs);
+  console.log(`The Query Took ${(Date.now() - this.start) / 1000} seconds`);
+
+  next();
+});
+
+
+NOTE: You may have noticed that all middlewares look same but the difference between the query and document middleware is that document works with save and query works with find etc.
+
+post hook in mongoose also have access to document object.
+
+in case of pre hook query middleware the this keyword is pointing towared the current query object on which we can apply all methods
+
+Dont forget to add the below in you schemas:
+  secretTour: {
+      type: Boolean,
+      default: false,
+    }, 
+
+
+
+**AGGREATE Middleware
+
+//AGGREGATION MIDDLEWARE
+tourSchema.pre('aggregate', function (next) {
+  this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
+  console.log('aggregation middleware pipeline: ', this.pipeline());
+
+  next();
+});
+
+Here unshift is a javascript method which is used to add the elements at the beginning of the array similarly we have shift method which is used to add elements at the end of the array
+
+
+
+**********Data Validation in mongoose
+Validation simply means that whether the entered data is in right format or not.
+There is another concept called sanitization. Which simply means whether the entered data is clean or not.
+It is a GOLDEN standard in backend development that never ever receive data from backend as it is.
+
+We have added some built in validators in our Model schemas which are given below:
+const tourSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'A tour must have a name'],
+      unique: true,
+      trim: true,
+      maxlength: [40, 'A tour must have less than or equal to 40 characters'],
+      minlength: [
+        10,
+        'A tour name must have greater or equal than 10 character',
+      ],
+    },
+    slug: String,
+    duration: {
+      type: Number,
+      required: [true, 'A tour must have a duration'],
+    },
+    maxGroupSize: {
+      type: Number,
+      required: [true, 'A tour must have a group size'],
+    },
+    difficulty: {
+      type: String,
+      required: [true, 'A tour must have a difficulty'],
+      enum: {
+        values: ['easy', 'medium', 'difficult'],
+        message: 'Difficulty can either be: easy, medium or difficult',
+      },
+      
+    },
+    ratingsAverage: {
+      type: Number,
+      default: 4.5,
+      minlength: [1, 'Rating must be above 1.0'],
+      maxlength: [5, 'Rating must be below 5.0'],
+    },
+    ratingsQuantity: {
+      type: Number,
+      default: 0,
+    },
+    price: {
+      type: Number,
+      required: [true, 'A tour must have a price'],
+    },
+    priceDiscount: Number,
+    summary: {
+      type: String,
+      trim: true, //Trim will remove spaces in the start and end of the string
+      required: [true, 'A tour must have a summary'],
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    imageCover: {
+      type: String,
+      required: [true, 'A tour must have a cover Image'],
+    },
+    images: [String],
+    createdAt: {
+      type: Date,
+      default: Date.now(),
+      select: false,
+    },
+    startDates: [Date],
+    secretTour: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: false },
+  },
+);
+
+//here enum is only for strings which are allowed
+
+*************Custom validators
+Sometimes builtin validators are not enough to meet our requirements. Custom validators are here to fill the gap.
+Custom validators are nothing just a simple function which returns either true or false. On the basis of which the input is accepted
+
+ price: {
+      type: Number,
+      required: [true, 'A tour must have a price'],
+    },
+    priceDiscount: {
+      type: Number,
+      validate: {
+        validator: function (val) {
+          // here this keyword is pointing toward the value entered by the user on creating NEW document
+          return val < this.price;
+        },
+        message: 'Discount price ({VALUE}) must be less than the actual price',
+      },
+    },
+
+// This is how we define a custom validator.
+
+//There are several libraries for making custom validators we are gonna use "validator"
+
+npm install validator
+
+  name: {
+      type: String,
+      required: [true, 'A tour must have a name'],
+      unique: true,
+      trim: true,
+      maxlength: [40, 'A tour must have less than or equal to 40 characters'],
+      minlength: [
+        10,
+        'A tour name must have greater or equal than 10 character',
+      ],
+      validate: [validator.isAlpha, 'Tour Name must only contain characters'],
+    },
+
+here .isAlpha is a method which allows characters only in the name not even numbers as numbers are not count in character. Not even spaces are not allowed.
+
+
+************Error handling in nodeJS
+We are going to use NDB (node debugger) for error handling
+now go to your package.json file and add 
+
+"debug": "ndb server.js" 
+in your script tag
+
+now npm run debug
+
+chromium debugger window will be open
+
+This tool is same as chrome debugger but it provides more feature and control. Like chrome debugger you can add break points in it and so on.
+
+
+
+***************Handling unhandled route error
+// In app.js
+
+app.all('*', (req, res, next) => {
+  res.status(404).json({
+    status: 'fail',
+    message: `Can't find ${req.originalUrl} on this server!`,
+  });
+});
+
+this is a middleware function for all urls and for all http methods
+
+**IMP**: Don't place middleware in the wrong place as we all know middleware run in the order as they are specified.
+So we have defined this middlware in the last of the app.js so that in case of request failure this middleware should reach otherwise it should not.
+
+
+************Error Handling Overview
+There are two types of error
+1. Operational Errors (Error which we can predict that may occure at some point somewhere in future e.g invalid path access by the user, failed to connect to the server/database.)
+2. Programming Errors (Errors or bugs in our code introduced by the programmer or developer while writing code e.g reading properties from undefined variable)
+
+So to solution to these error we have to create a "Global Error handling middleware" which will deal with error coming from all our application.
+
+
+**************Implementing Global Error Handling middleware************
+
+// Creating error
+app.all('*', (req, res, next) => {
+  const err = new Error(`Can't find ${req.originalUrl} on this server!`);
+  err.status = 'fail';
+  err.statusCode = 404;
+  next(err);
+});
+
+
+// Global Error handling middleware
+app.use((err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+  res.status(err.statusCode).json({
+    status: err.status,
+    message: err.message,
+  });
+});
+
+//NOTE: whenever there is middleware with first argument err then Express will automatically assume it as global error handling middleware. And whenever we pass anything inside next(err) function it will be considered that we have passed an error inside next function.
+
+Now we all just need to create error as we have created above then this global middleware will be called automatically.
+
+****************Creating Error Class and refracting the code
+
+//create file in utils called appError.js
+
+// In appError.js
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+
+    this.statusCode = statusCode;
+    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+    this.isOperational = true;
+
+    Error.captureStackTrace(this, this.construtor);
+  }
+}
+
+module.exports = AppError;
+
+// here isOperational = true; would be helpful later on in distinguish between the operational and programming errors
+
+//here we have used the concept of inheritance as AppError inherit inside Error class. In case inheritance we always call super function to call the parent class constructor function. We are calling super function by message property as built Error class only accepts message property.
+// stack trace tells you the location of the error as console.log(err.stack)
+but in our case we want that whenever a new class is created it should not be traced.	
+// we have not done this.message = message as we know super(message) will automatically set the incoming message to message property
+
+
+//create a new file in controller folder called errorController.js
+// In errorController.js
+
+module.exports = (err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+  res.status(err.statusCode).json({
+    status: err.status,
+    message: err.message,
+  });
+};
+
+
+//In app.js
+const AppError = require('./utils/appError');
+const globalErrorHandler = require('./controllers/errorController');
+
+app.all('*', (req, res, next) => {
+  next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
+});
+
+app.use(globalErrorHandler); // this middleware is getting called due to the next function in above middleware.
+// This is how we can pass arguments to our Error handling class
+
+
+**************Catching errors in async Functions
+// Create new file in utils folder called catchAsync.js
+
+// In catchAsync.js
+
+module.exports = (fn) => {
+  return (req, res, next) => {
+    fn(req, res, next).catch((err) => next(err));
+  };
+};
+
+// we have done this just for the sake to clean our code as there was repeatablity of calling catch block. In order to avoid this we have created a function which receives an other function that function would be our async function.
+We are returing a function in this function so that express call it. This is basically a async code work thing.
+
+JS allows to apply catch methods on functions.
+
+now we just have to wrap our async functions in tourController inside this catchAsync function we also have to add next argument property in our async function so that each async function comes with its own next function. Here next(err) will call the global error handling middleware.
+
+// In tourController.js
+const catchAsnyc = require('./../utils/catchAsync');
+const AppError = require('../utils/appError');
+
+exports.getAllTours = catchAsnyc(async (req, res, next) => {
+  // EXECUTE QUERY
+  const features = new APIFeatures(Tour.find(), req.query)
+    .filter()
+    .sort()
+    .limitFields()
+    .paginate();
+  const tours = await features.query;
+
+  res.status(200).json({
+    status: 'success',
+    results: tours.length,
+    data: {
+      tours: tours,
+    },
+  });
+});
+
+exports.getTour = catchAsnyc(async (req, res, next) => {
+  const tour = await Tour.findById(req.params.id);
+  // Tour.findOne({_id: req.params.id})
+  if (!tour) {
+    return next(new AppError('No Tour Found with this ID', 404));
+  }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: tour,
+    },
+  });
+});
+
+exports.createTour = catchAsnyc(async (req, res, next) => {
+  const newTour = await Tour.create(req.body);
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: newTour,
+    },
+  });
+});
+
+exports.updateTour = catchAsnyc(async (req, res, next) => {
+  const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true,
+  });
+  if (!tour) {
+    return next(new AppError('No Tour Found with this ID', 404));
+  }
+  res.status(200).json({
+    status: 'success',
+    data: {
+      tour: tour,
+    },
+  });
+});
+
+exports.deleteTour = catchAsnyc(async (req, res, next) => {
+  const tour = await Tour.findByIdAndRemove(req.params.id);
+  if (!tour) {
+    return next(new AppError('No Tour Found with this ID', 404));
+  }
+  res.status(204).json({
+    status: 'success',
+    data: null,
+  });
+});
+
+exports.getTourStats = catchAsnyc(async (req, res, next) => {
+  const stats = await Tour.aggregate([
+    {
+      $match: { ratingsAverage: { $gte: 4.5 } },
+    },
+    {
+      $group: {
+        _id: { $toUpper: '$difficulty' },
+        // _id: '$ratingsAverage',
+        numTours: { $sum: 1 },
+        numRating: { $sum: '$ratingsQuantity' },
+        avgRating: { $avg: '$ratingsAverage' },
+        avgPrice: { $avg: '$price' },
+        minPrice: { $min: '$price' },
+        maxPrice: { $max: '$price' },
+      },
+    },
+    {
+      $sort: {
+        avgPrice: 1,
+      },
+    },
+    {
+      $match: { _id: { $ne: 'EASY' } },
+    },
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: { stats },
+  });
+});
+
+exports.getMonthlyPlane = catchAsnyc(async (req, res, next) => {
+  const year = req.params.year * 1;
+  //Deconstructs an array field from the input documents to output a document for each element.
+  //Each output document is the input document with the value of the array field replaced by the element.
+
+  const plan = await Tour.aggregate([
+    {
+      $unwind: '$startDates',
+    },
+    {
+      $match: {
+        startDates: {
+          $gte: new Date(`${year}-01-2021`),
+          $lte: new Date(`${year}-12-31`),
+        },
+      },
+    },
+    {
+      $group: {
+        _id: { $month: '$startDates' },
+        numTourStarts: { $sum: 1 },
+        tours: { $push: '$name' },
+      },
+    },
+    { $addFields: { month: '$_id' } },
+    {
+      $project: {
+        // project is used for hiding a field
+        _id: 0,
+      },
+    },
+    {
+      $sort: { numTourStarts: -1 }, //-1 for descending
+    },
+    {
+      $limit: 6, //This is just limiting our number of output documents
+    },
+  ]);
+  res.status(200).json({
+    status: 'success',
+    data: {
+      plan,
+    },
+  });
+});
+
+// NOTE:  See how next(new AppError('No Tour Found with this ID', 404)); 
+making our code simple here AppError is just a helper class which make our error more readable and then pass to the next which pass it to our global error handler
 	
 
 
+****************Distinguishing operational and programming errors
 
+// In errorController.js
+const sendErrorDev = (err, res) => {
+  res.status(err.statusCode).json({
+    status: err.status,
+    error: err,
+    message: err.message,
+    stack: err.stack,
+  });
+};
+const sendErrorProd = (err, res) => {
+  // operational error that are trusted error: send message to the client
+  if (err.isOperational) {
+    res.status(err.statusCode).json({
+      status: err.status,
+      message: err.message,
+    });
+  
+  
+  // Programming error or other unknown errors: don't want to leak the details to the client
+  } else {
+    // 1) log error
+    console.error('ERROR 💣', err)
+
+    // send generic error
+    res.status(500).json({
+      status: 'error',
+      message: 'Something went wrong!',
+    });
+  }
+};
+module.exports = (err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+
+  if (process.env.NODE_ENV === 'development') {
+    sendErrorDev(err, res);
+  } else if (process.env.NODE_ENV === 'production') {
+    sendErrorProd(err, res);
+  }
+};
+
+
+****************Handling errors for Invalid IDs, duplicate field names, mongoose validation error
+
+// In errorcontroller.js
+const AppError = require('./../utils/appError');
+const handleCastErrorDB = (err) => {
+  const message = `Invalid ${err.path}: ${err.value}`;
+  return AppError(message, 400);
+};
+const handleDuplicateFieldsDB = (err) => {
+  const value = err.errmsg.match(/(["'])(?:(?=(\\?))\2.)*?\1/)[0];
+  console.log(value);
+  const message = `Duplicate field value: ${value}. Please use another value`;
+  return AppError(message, 400);
+};
+const handleValidationErrorsDB = (err) => {
+  const errors = Object.values(err.errors).map((el) => el.message);
+  const message = `Invalid input data ${errors.join('. ')}`;
+  return new AppError(message, 400);
+};
+
+// REST of the code..
+
+module.exports = (err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+
+  if (process.env.NODE_ENV === 'development') {
+    sendErrorDev(err, res);
+  } else if (process.env.NODE_ENV === 'production') {
+    let error = { ...err }; //trick or creating hard copy
+    if (error.name === 'CastError') (error) => handleCastErrorDB(error);
+    if (error.code === 11000) (error) => handleDuplicateFieldsDB(error);
+    if (error.name === 'ValidationError')
+      (error) => handleValidationErrorsDB(error);
+    sendErrorProd(error, res);
+  }
+};
+
+
+we have made changes for production mode
+
+***********Unhandled promise rejection
+
+
+There might be a chance that a promise get rejected somewhere in our application but In order to have safety net to prevent that error we use Event listeners
+
+const server = app.listen(port, () => {
+  // eslint-disable-next-line no-console
+  console.log(`Server is running on port ${port}`);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.log(err.name, err.message);
+  console.log('UNHANDLED REJECTION! Shutting down...');
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+
+*****************Uncaught Exception
+In uncaught exception the termination of application is necessary as in uncaught exception the application is not in the clean state so in such  state application must be terminate but in case of uncaught rejection the termination of applicaion is not necessary
+
+console.log(x)
+
+where x is undefined willl give an uncaught exception.
+
+It should be on the top- of our node js application
+even before the app
+
+// In server.js
+process.on('uncaughtException', (err) => {
+  console.log('UNCAUGHT EXCEPTION');
+  process.exit(1);
+});
+
+
+
+NOTE: Error handling is one of the most complex topic in node js
