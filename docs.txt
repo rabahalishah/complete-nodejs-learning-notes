@@ -1509,6 +1509,10 @@ mongosh "mongodb+srv://myuser:mypassword@mycluster.mongodb.net/test" --authentic
 
 After running this command, you should be connected to your MongoDB Atlas cluster and can start interacting with your remote database.
 
+OR simply get the link of your database that you put into your mongoDB compass
+
+mongosh "mongodb+srv://username:<Password>@cluster0.vsioz83.mongodb.net/<DatabaseName>?retryWrites=true&w=majority"
+
 
 ***************In Summary of MongoDB
 
@@ -3161,3 +3165,645 @@ process.on('uncaughtException', (err) => {
 
 
 NOTE: Error handling is one of the most complex topic in node js
+
+
+***********Authentication, Autherization and security
+
+Creating user model and schema
+
+// In models create a file called userModel.js
+
+//In userModel.js
+
+const mongoose = require('mongoose');
+const validator = require('validator');
+
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    require: [true, 'Please tell use your name'],
+  },
+  email: {
+    type: String,
+    require: [true, 'Please provide your email'],
+    unique: true,
+    lowercase: true,
+    validate: [validator.isEmail, 'Please provide a valid email'], //isEmail is a builtin function validator npm doucment.
+  },
+  photo: { type: String, require: true },
+  password: {
+    type: String,
+    require: [true, 'Please provide a password'],
+    minlength: 8,
+  },
+  passwordConfirm: {
+    type: String,
+    require: [true, 'Please confirm your password'],
+  },
+});
+
+const User = mongoose.model('User', userSchema); //it will store as users in mongoDB automatically
+
+module.exports = User;
+
+
+************Creating new Users
+Create a file in controller folder called authController.js
+
+//In authController.js
+
+const User = require('./../models/userModel');
+const catchAsnyc = require('./../utils/catchAsync');
+
+exports.signup = catchAsnyc(async (req, res) => {
+  const newUser = await User.create(req.body);
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      user: newUser,
+    },
+  });
+});
+
+
+// Now go to the Routes folder and go to userRouter.js and add a new route
+// In userRouter.js
+
+
+//...Rest of the code
+
+router.post('/signup', authController.signup);
+
+//...Rest of the code
+
+***Testing signup endpoint
+
+go to the postman and check for
+
+127.0.0.1:3000/api/v1/users/signup
+
+// send this below raw json body to this end point with POST method
+{
+    "name":"test",
+    "email":"test@gmail.com",
+    "password":"test1234",
+    "passwordConfirm":"test1234"
+}
+
+**********Managing passwords
+
+We should not store our passowords as plain text in the database as hacker can access them which may cause some damage. So in order to encrypt our passwords we will implement this functionality in our Model not in the controller.
+Always follow "Fat model Thin controller"
+
+Go to the userModel.js
+
+First validate the password that the entered password and confirm password both are same. Remember that validation is nothing to work with out DB. We are doing it only for the user to not have any mistake while choosing his password. This means that we are not going save the confirm password field in our database on the actual password field will be stored.
+
+passwordConfirm: {
+    type: String,
+    require: [true, 'Please confirm your password'],
+    validate: {
+      //This will work only on saving or creating a user
+      validator: function (el) {
+        return el === this.password;
+      },
+      message: 'Passwords are not the same',
+    },
+  },
+
+// for validation you just have t0 add the above function in your schema
+
+now before storing the password first salt it and then hash it and then store it into the database. here salting before hashing will always create a hased version which won't be the same for same string. This is the power of salting
+We are doing this using middleware.
+
+userSchema.pre('save', async function (next) {
+  //Only run this function when the password is actually modified
+  if (!this.isModified('password')) return next();
+
+  //Hashing the password
+
+  this.password = await bcrypt.hash(this.password, 12);
+
+  //Deleting the confirm password unnecessaary field
+  this.passwordConfirm = undefined;
+  next();
+});
+
+//this middleware will work before the data is going to store in the database.
+
+
+****************HOW JWT authentcation works
+JWT is perfect for RESTful APIs as it matches the principle of stateless.
+**General Overview**
+
+Let say, a client made an http post request to login into his account with his email and password. The server first validate the user. If the user is validated then generate a JWT token and sends back to the client. Now this JWT Token is like a passport. Now this token is store in cookies or local storage. Server does not know this JWT token as it is stateless. 
+Now onward whenever the user the try to access any protected route the user will send show his JWT token and server will verify it and then will allow access to the user to that proctected route.
+
+
+JWT:
+
+JWT consists of three parts:
+1. Header:
+
+header is simply a meta data or info about the token e.g
+{
+	"alg": "HS256",
+	"type": "JWT"
+}
+
+
+2. Payload
+payload is actually the data we want we can decode this data. Remember that this data is not encrypted it is just encoded. e.g
+{
+	"_id": "5dsfdsc5ds1cscds6sdfdsfsdds4ds5gfham"
+}
+
+
+
+3. Signature
+Signature is made up of three things
+header
+payload
+and a secret key which is stored in our server
+
+e.g
+
+{
+	HMACSHA256(base64UrlEncoded(header) + "." + base64UrlEncoded(payload), my-secret-key)
+}
+
+
+
+JWT = Header + payload + signature
+where signature = (header + payload + secret key)
+
+****Deep dive in behind the scenes of how JWT works
+
+when the JWT is received by the client it acts as a passport.
+
+when the user try to access any protected route he shows his JWT token. The verification takes the header and payload and create a Test signature using the secret which is stored in the server. Then the verifier compares only the "Original Signature" with the "Test Signature" if they get matched the user will be allow to access otherwise he won't. Moreover, this verification will also make sure that header and payload are not changed as we all know signature is made up of header, payload and a secret key. 
+
+
+
+************Implementing the authenitcation, Signing in the new user:
+
+NOTE: Authentication is the most important part of an application. It should be done very very carefully. For authentication there are several libraries but they do not provide you the full control so therefore we are not going to use any library we will instead write the whole code by ourselves and we will only use one library called "jsonwebtoken" to deal with all JWT stuff.
+
+
+while generating the secret key most of the developers do mistake they simply make a simple string which is wrong. The secret key must be a 32 character long string which should be complex and not easy to guess.
+
+So I usually prefer to run the below command to generate a random key in the terminal
+
+> require('crypto').randomBytes(32).toString('base64').slice(0,32)
+
+Syntax: require('crypto').randomBytes(size).toString('base64').slice(0,size)
+
+**************Signing up the user and sending JWT back to the client
+//In authController.js
+const jwt = require('jsonwebtoken');
+const User = require('./../models/userModel');
+const catchAsnyc = require('./../utils/catchAsync');
+
+exports.signup = catchAsnyc(async (req, res) => {
+// here we are receiving only specific data from the client to prevent the unnecessary or harmful data
+  const newUser = await User.create({
+    name: req.body.name,
+    email: req.body.email,
+    password: req.body.password,
+    passwordConfirm: req.body.passwordConfirm,
+  });
+
+//generating jwt
+  const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+
+//sending back response to the client
+  res.status(201).json({
+    status: 'success',
+    token: token,
+    data: {
+      user: newUser,
+    },
+  });
+});
+
+// Here we are simply singing up/ creating a new user so there is no any need here to verify the user. In the next step we are going to implement this.
+
+
+************Logging the user In
+// creating a login route in userRoute.js
+
+//In userRoutes.js
+
+router.post('/login', authController.login);
+
+
+//In authController.js
+const jwt = require('jsonwebtoken');
+const User = require('./../models/userModel');
+const catchAsnyc = require('./../utils/catchAsync');
+const AppError = require('./../utils/appError');
+
+const signToken = (id) => {
+  return jwt.sign({ id: id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+};
+
+exports.login = catchAsnyc(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  //checking email and password exists or not
+
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password!', 400));
+  }
+
+  // Checking the user exist and password is correct.
+  const user = await User.findOne({ email: email }).select('+password'); //here + sign is for the fields which are by default not selected in User Model as select:false
+
+  //here correctPassword is our custom made global instance method for user document thats why we can use it here.
+  if (!user || !(await user.correctPassword(password, user.password))) {
+    return next(new AppError('incorrect email or password', 401));
+  }
+
+  // If everything ok, then send token to client
+  const token = signToken(user._id);
+  res.status(200).json({
+    status: 'success',
+    token: token,
+  });
+});
+
+// here correct password is a custom method which we have created it is called global instance method which we have created in userModel.js we could create this method any where but we are following fat model and thin controller principle so thats why...
+
+// so in UserModel.js
+
+userSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
+  return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+also we do not want our password visible when we do getAllUser request so to prevent it we are adding the following property in our model schema
+ password: {
+    type: String,
+    require: [true, 'Please provide a password'],
+    minlength: 8,
+    select: false,
+  },
+
+//Here till this point a user logged in get authorized and get a jwtToken now our next step would be to protect our routes
+
+***************Protecting the routes Part 1
+here we want to protect the getAllUser route which we can protect by using middleware
+
+//In authController.js
+exports.protect = catchAsnyc(async (req, res, next) => {
+  //Getting the token and check its true or not
+  let token;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  console.log('My Token: ', token);
+
+  if (!token) {
+    return next(
+      new AppError(
+        'You are not logged in! Please log in first to get access',
+        401,
+      ),
+    );
+  }
+  next();
+
+  //verification of token
+  //check if user is still exists
+  //check if user changed password after the token was issued
+});
+
+//In tourRoutes.js
+const authController = require('../controllers/authController');
+
+//Rest of the code.....
+
+  .route('/')
+  .get(authController.protect, tourController.getAllTours)
+  .post(tourController.createTour);
+
+
+
+**********Now complete authenticaion 
+
+// In authController.js
+exports.login = catchAsnyc(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  //checking email and password exists or not
+
+  if (!email || !password) {
+    return next(new AppError('Please provide email and password!', 400));
+  }
+
+  // Checking the user exist and password is correct.
+  const user = await User.findOne({ email: email }).select('+password'); //here + sign is for the fields which are by default not selected in User Model as select:false
+
+  //here correctPassword is our custom made global instance method for user document thats why we can use it here.
+  if (!user || !(await user.correctPassword(password, user.password))) {
+    return next(new AppError('incorrect email or password', 401));
+  }
+
+  // If everything ok, then send token to client
+  const token = signToken(user._id);
+  res.status(200).json({
+    status: 'success',
+    token: token,
+  });
+});
+
+exports.protect = catchAsnyc(async (req, res, next) => {
+  //Getting the token and check its true or not
+  let token;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  console.log('My Token: ', token);
+
+  if (!token) {
+    return next(
+      new AppError(
+        'You are not logged in! Please log in first to get access',
+        401,
+      ),
+    );
+  }
+
+  //verification of token
+  const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+
+  //check if user is still exists
+  const freshUser = await User.findById(decoded.id);
+  if (!freshUser) {
+    return next(
+      new AppError(
+        'The token belonging to this user no longer exist. Please login again!',
+        401,
+      ),
+    );
+  }
+
+  //check if user changed password after the token was issued
+  if (freshUser.changedPasswordAfter(decoded.iat)) {
+    return next(
+      new AppError('User recently changed password. Please log in again', 401),
+    );
+  }
+
+  //Grant access to protected route
+  req.user = freshUser; //assigning current user to req.user to have access to the current user. This is very very important step
+  next();
+});
+
+**NOTE**:   req.user = freshUser; //assigning current user to req.user to have access to the current user. This is very very important step
+
+
+// In userModel.js
+
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimeStamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10,
+    );
+    return JWTTimestamp < changedTimeStamp;
+  }
+
+  //false means password not changed
+  return false;
+};
+
+
+//most of the developer only do authentication algorithm till verification of token. They do not do complete authentication till check if user changed password after the token was issued this is supposed to be done as if someone stole the JWT token of a user and the user to protect himself change his password then the token should also be expired a new token should be generate right? so in this we have done that too. Moreover we have also checked if user is still exists. This is done so that in a case when someone deleted the user from the database and then its token will be there and due to which someone can grant access to the protected routes which should be done. We have deal with this case too.
+
+
+While access the protecting routes the user must send valid JWT token via headers so in postman go to headers and give key, value as
+authorization: Bearer ashfgsadhfdsajasjkd8236482e27e632876217g
+
+
+*************Advance Postman Setup
+First we will setup our environment
+we have set two environments namely Dev: Natours and Prod: Natours
+we have set URL: http://127.0.0.1 for Dev env
+we have set URL: natours.io for Prod env
+
+
+Now we all know that on login or on creating a new user that is signing up we get a JWT Token and then we send this token from front end inside the headers to get access to the protected routes.
+so here we were doing copy and paste the token to test our end points so save out time we will automate this process
+
+so to do that go to your signup and login end points tab in Postman and look for test tab and write a code to programmatically automate the process.
+In sigup test script
+
+pm.environment.set("jwt", pm.response.json().token);
+
+In login test script
+pm.environment.set("jwt", pm.response.json().token);
+
+//here we are assigning our coming token to jwt variable which would be available through out the environment in postman
+
+now go to your getAllTours tab
+look for authorization tab and select Bearer Token and set token to {{jwt}}
+
+************Implenmenting Authorization and role based permissions
+Authenticaiton and Authorization both are different things.
+Authentication verifies the identity of a user whereas authorization determines the right of access on the basis of the role of the user.
+
+All logged in users are not allowed to perform all the actions in the API only certain users such as admin etc will be allowed to have full control.
+
+So we are first gonna restrict out DeleteTour route, only admin and lead-guide would be allowed to do this.
+
+so to do that first create wrapper function which returns a middleware function 
+
+//In authCOntroller.js
+exports.restrictTo = (...roles) => {
+  return (req, res, next) => {
+    // where roles = ['admin', 'lead-guie'] are allowed
+    console.log('roles: ', roles);
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new AppError('You are not have permission to perform this action', 403),
+      );
+    }
+    next();
+  };
+};
+// here we cannot pass aurguments to a middleware function thats why we are wrapping our middleware function
+// into a restrictTo wrapper function
+// here req.user is the current user as we have stored our current user in req.user in protect route middleware function
+
+//In tourRoutes.js
+
+//Rest of the code....
+router
+  .route('/:id')
+  .get(tourController.getTour)
+  .patch(tourController.updateTour)
+  .delete(
+    authController.protect,
+    authController.restrictTo('admin', 'lead-guide'),
+    tourController.deleteTour,
+  );
+
+
+here in delete tour route we have introduced two middleware first middlware is protecting the route from unauthenticated user and second one is authorizing the user
+NOTE that we are passing two arguments in restrictTo wrapper function which returns a middleware function
+
+
+****************Reset Password functionality or Fogot password
+So here in this functionality there are two methods to implement this 
+step 1: The user will send a post request to forgot password route where he will provide an email address. 
+Then a reset token will be generated which will not a JSON token but a simple token. That token will be send to the provided email address.
+Step 2: User will send back or make a post request to the reset password route with that reset token along with his new or updated password.
+
+*****Step1
+
+Here one thing the you should always remember that the reset token should be encrypted first and then save into the database. Whereas the non encrypted version of the token should be send to cliend via email.
+When ever there is a need of function which will must interact with the database or our shema model we always refer to have global instance method functions in our Model.js
+
+// In userModel.js
+
+passwordResetToken: String,
+passwordResetExpires: Date,
+
+//add these above two fields in your model schema
+
+userSchema.methods.createPasswordResetToken = function () {
+  // generating a token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  // encypting the generated token and storing into our database
+
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  console.log({ resetToken }, this.passwordResetToken);
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
+};
+
+// this global instance method will return an unencrypted reset Token and will save an encypted reset token to the database so that later we could compare them. Moreover since this is a global instance method so this would be available through out the document. This key word here will point toward the current document that why to access any field we do this.passwordResetToken
+
+// In userRoutes.js
+// Don't forget to create routes for forgot and reset password
+
+router.post('/forgotPassword', authController.forgotPassword);
+router.patch('/resetPassword/:token', authController.resetPassword);
+
+// In authConroller.js
+exports.forgotPassword = catchAsnyc(async (req, res, next) => {
+  // Get the user email tand verify the email
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) {
+    return next(new AppError('There is no user with this email address!', 404));
+  }
+  // Generate a random token
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
+
+  // Send that token to the provided email
+});
+
+NOTE: here the reason behind using this property { validateBeforeSave: false } is that we are saving encrypted version of resetPassword Token without any validation we are assuming it to correct as we are generating it by ourselve. So here we will get warnings and error so we are just turning off validation for this token saving in database.
+
+**************Sending email/ Forgot Password
+To send email via node js we are using nodemailer and for development instead of using our actual emails we are using mailtrap to deal with emails. This mail trap will give us a fake email and password to which we can send emails etc.
+
+// In authController.js
+
+exports.forgotPassword = catchAsnyc(async (req, res, next) => {
+  // Get the user email tand verify the email
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) {
+    return next(new AppError('There is no user with this email address!', 404));
+  }
+  // Generate a random token
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
+
+  // Send that token to the provided email
+  const resetURL = `${req.protocol}://${req.get(
+    'host',
+  )}/api/v1/users/resetPassword/${resetToken}`;
+
+  const message = `Forgot your password? Submit a PATCH request with your new password and confirm password to: ${resetURL}.\nIf you didn't forget your password then Please ignore this email.`;
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'You Password Reset Token (Valid for 10 mins)',
+      message: message,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Token sent to email!',
+    });
+  } catch (err) {
+    (user.passwordResetToken = undefined),
+      (user.passwordResetExpires = undefined),
+      await user.save({ validateBeforeSave: false });
+    return next(
+      new AppError(
+        'There was an error in sending the email. Try again later!',
+        500,
+      ),
+    );
+  }
+});
+
+// Here we have completed our three step forgot password mechanism. In catch block in case of any error we have set our generated reset tokens to undefined.
+
+// In utils folder email.js
+const nodemailer = require('nodemailer');
+
+const sendEmail = async (options) => {
+  // 1) Create a transporter
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    auth: {
+      user: process.env.EMAIL_USERNAME,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  });
+  // Define email option
+  const mailOptions = {
+    from: 'Jonas Schmedtmann <user@gmail.com>',
+    to: options.email,
+    subject: options.subject,
+    text: options.message,
+  };
+  // Actually send email
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = sendEmail;
+
+// Here we are simply configuring our mail sending mechanism. Here from now we will work on resetting the password.
+Uptill now when the user will click on forgot password a user will be validate first after that a token will be generated and its encrypted version will be saved in the database and its unencrypted version will be sent to the email using nodemailer and mailtrap to user. Now the user will go to the reset route with reset token he got in the email and then he send back the token with updated password. Then the password will be compared with the encrypted version saved in the database if it get matched then password will be updated otherwise not.
+
+*****************Resetting the password.
+
+
+
+
+
+
+
