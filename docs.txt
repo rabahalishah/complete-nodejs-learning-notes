@@ -3797,9 +3797,367 @@ const sendEmail = async (options) => {
 module.exports = sendEmail;
 
 // Here we are simply configuring our mail sending mechanism. Here from now we will work on resetting the password.
-Uptill now when the user will click on forgot password a user will be validate first after that a token will be generated and its encrypted version will be saved in the database and its unencrypted version will be sent to the email using nodemailer and mailtrap to user. Now the user will go to the reset route with reset token he got in the email and then he send back the token with updated password. Then the password will be compared with the encrypted version saved in the database if it get matched then password will be updated otherwise not.
+Uptill now when the user will click on forgot password a user will be validate first after that a token will be generated and its encrypted version will be saved in the database and its unencrypted version will be sent to the email using nodemailer and mailtrap to user. Now the user will go to the reset route with reset token he got in the email and then he send back the token with updated password. Then the password will be compared with the encrypted version saved in the database if it get matched then password will be updated and the reset Token and reset password expires time will be deleted from the database otherwise not.
 
 *****************Resetting the password.
+
+//In authController.js
+exports.resetPassword = catchAsnyc(async (req, res, next) => {
+  // get user based on token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+
+  //If token hase not expired and there is user set the new password
+  if (!user) {
+    return next(new AppError('Token is invalid or has expired, 400'));
+  }
+  //updating password and confirm password
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+
+  // deleting the Reset token and reset Token expire from the db once the password is updated
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+
+  await user.save(); //here we are not truning OFF the validators. As we want to validate the password.
+
+  //update  changedPasswordAt property for the user
+  
+  // log the user in, send JWT
+  const token = signToken(user._id);
+  res.status(200).json({
+    status: 'success',
+    token: token,
+  });
+});
+
+
+//NOTE: here not that we are using save() mehtod to save the data in the database. Here we could also used findOneAndUpdate but we have not done that the reason behind the fact is that all the validators and many middleware runs on save() method thats why we do this.
+
+// In userModel.js
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password') || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now() - 1000;
+  next();
+});
+
+**************Allowing a logged in user to update his password who didnt forgot his password
+
+//In authController.js
+
+exports.updatePassword = catchAsnyc(async (req, res, next) => {
+  // Get user from collection
+  const user = await User.findById(req.user.id).select('+password');
+  //here req.user is our current user which we have stored in the above code of protect middleware function
+
+  // Check if the posted current password is correct by comparing it with the password stored in the database
+  if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
+    return next(new AppError('Your current password is wrong!'));
+  }
+  // If so, update password
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  await user.save();
+
+  // Log user in send JWT
+  createSendToken(user, 200, res);
+});
+
+// here to avoid the repetition of code we have created a separate function for 
+
+// In userRoutes.js
+
+//Rest of the code....
+router.patch(
+  '/updateMyPassword',
+  authController.protect,
+  authController.updatePassword,
+);
+
+
+//NOTE: Here we are providing an update password feature for the user who are logged in. The one who will access the updateMyPassword route will be first go through the protect middleware and then updatepassword function where they would be validate too. Once the password is updated the new JWT token will be generated and then send to user.
+
+
+*********updating current user data other than passsword.
+
+// now we will add function for this purpose in userController.js instead of authController.js
+
+// In userController.js
+
+const filterObj = (obj, ...allowedFields) => {
+  const newObj = {};
+  Object.keys(obj).forEach((el) => {
+    if (allowedFields.includes(el)) newObj[el] = obj[el];
+  });
+  return newObj;
+};
+
+exports.updateMe = catchAsnyc(async (req, res, next) => {
+  // 1) Create Error if user POSTs password data
+  if (req.body.password || req.body.passwordConfirm) {
+    return next(
+      new AppError(
+        'This route is not for password updates. Please use /updateMyPassword route.',
+        400,
+      ),
+    );
+  }
+
+  // 2) Filtered out unwanted fields names that are not allowed to be updated
+  const filteredBody = filterObj(req.body, 'name', 'email');
+  const updatedUser = await User.findByIdAndUpdate(req.user.id, filteredBody, {
+    new: true,
+    runValidators: true,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: updatedUser,
+    },
+  });
+});
+
+
+//Note: Here we are simply adding a featrue in our app to allow the user to update his data such as email and name. In first part we are preventing the user to post request his password and current password. Then we are restricting our user to not update the whole body includinh role. we are filtering the body which is send by the user and extracting only name and email no matter what user has sent it will only accept name and email and will ignore the rest of the fiels without showing the error. The error will appear only when the user will try to update his password with this route as we have created a separate route for updating the passwords.
+
+// In userRoutes.js
+
+//Rest of the code....
+router.patch('/updateMe', authController.protect, userController.updateMe);
+
+//here we are calling the protect middleware which make sure that the user is authenticated and logged In. User must to log in first in order to update his information.
+
+
+***************Deleting the current user
+When we talk about deleting the user we actually do not delete the user from the database we simply mark that account as inactive and hide that user from the database. So that in future the user may rejoin the account.
+
+//In userController.js
+
+//marking the user inactive
+exports.deleteMe = catchAsnyc(async (req, res, next) => {
+  await User.findByIdAndUpdate(req.user.id, { active: false });
+
+  res.status(200).json({
+    status: 'success',
+    data: null,
+  });
+});
+
+//In userModel.js
+
+//add the below field in schema
+
+ active: {
+    type: Boolean,
+    default: true,
+    select: false,
+  },
+
+// hiding the user from database
+userSchema.pre(/^find/, function (next) {
+  //this points to the current query
+  this.find({ active: { $ne: false } });
+  next();
+});
+// Here this query middleware will run just before any mongoose method starting with "find" here regex means /^find/ that too.
+// this query is like filter. It will only show the users whose active status is not false in the database
+
+// In userRoutes.js
+//Rest of the code...
+router.delete('/deleteMe', authController.protect, userController.deleteMe);
+
+
+
+****************Security Best practices
+COMPROMISED DATABASE:
+your database should never ever store sensitive data in the form of plain text it must be encrypted.
+For example in our case for passwords we have encrypted them using bcrypt and for reset Tokens we have used SHA256 to encyrpt it.
+
+BRUTE FORCE ATTACK:
+Brute for attack is a hit and trial attack done by the attacker. In this attack the hacker simply try or loop millions of credentials to access the account.
+
+Preventations:
+Use Bcrypt to make the login request slow.
+Implement rate limitors such as allowing users to try to login for 10 times for example if a user tried to access his account with wrong credentials 10 times then he will have to wait for 1hr to try login again.
+
+
+CROSS-SITE-SCRIPTING:
+In this attack the hacker tries to run his malicious code on our page. This can be done if user accidentally open some link which is not safe. In this way the hacker will get access to the local storage. Thats the reason we should not store our JWT in local storage. Instead it should be store in Http-cookie only.
+
+Preventations:
+Store your JWT in http cookie only instead of local storage. So that browser can send or receive it. Do not access or modify it.
+Senitize user data. Do not get data as it is from the user
+On backend side to prevent XSS attacks set http special headers so it make harder from the attaker to attack.
+
+
+DOS (DENIAL OF SERVICE) Attack
+In this attack the hacker sends so many attacks to the server that the server got crashed and application becomes unavailable.
+
+Preventations:
+Implement rate-limitors. 
+Limit the data that can be send in body or post request
+Avoid Regular expressions in your code. AS they make you application slower.
+
+NoSQL Query injection
+This attack happens when attacker instead of injecting valid data he injects query to create query expressions that are gonna translate to true to get logged in without providing a valid password. For example: we can login to an account without knowing the password. 
+
+preventations:
+using mongoose for MongoDB and create a well defined schema
+Senitize the user data.
+
+
+Other Best Practices
+
+In production always always use https not http otherwise your queries and information will be revealed.
+Awalys create random password reset token with expiry dates.
+Deny access to JWT after the password is changed. The new JWT must be generated and user must have to login in again.
+Do not commit config.env file to git.
+Do not send error details to the clients like stack trace error otherwise this will leak sensitive information about your files.
+To prevent cross site request Forgery use csurf package (Cross-Site Request Forgery (CSRF) is an attack that forces an end user to execute unwanted actions on a web application in which they’re currently authenticated)
+Require re-authentication before high value actions such making payments or deleting something.
+Implement a blacklist of untrusted tokens. Like we cannot log out the user on they performing malicious activty but we can implement a list of untrusted tokens which must be validate before any query process.
+Confirm users email addresses before creating an account
+keep user logged in with fresh tokens
+Implement two factor authentication. Like after logging in sending an OTP or code to the text or email.
+
+
+*************sending JWT in httpCookie only
+cookie is nothing simply a text that browser used to send and receive
+
+lets add a logic to send jwt in cookie
+
+// In authController.js
+const createSendToken = (user, statusCode, res) => {
+  const token = signToken(user._id);
+
+  const cookieOptions = {
+    expires: new Date(
+      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+    ),
+
+    httpOnly: true, //so browser cannot access or modify it
+  };
+
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+
+  res.cookie('jwt', token, cookieOptions);
+  res.status(statusCode).json({
+    status: 'success',
+    token: token,
+    data: {
+      user: user,
+    },
+  });
+};
+
+//here we have added our sending cookies function
+
+*********Implementing Rate limiters
+
+we are using a package called 'express-rate-limiter'. To prevent Brute force attacks and denial of service attack etc.
+
+we will implement this logic on top of our app as a global middleware function
+
+// In app.js
+const rateLimit = require('express-rate-limit');
+
+const limiter = rateLimit({
+  max: 100, //maximum allowed requests
+  windowMs: 60 * 60 * 1000, //time in miliseconds
+  message: 'Too many requests from this IP, please try again in an hour!',
+});
+
+app.use('/api', limiter); // this middleware will be called for routes starting with /api as we know our all routes are starting with /api 
+
+
+***************Setting security headers
+To prevent cross site scripting and XSS attacks:
+
+we are gonna use helmet package to enable security headers
+// In app.js
+
+const helmet = require('helmet');
+app.use(helmet());
+
+NOTE: Place this middleware on the top of every middleware. so this add headers to all urls and api requests
+
+When you will make http request you will see your node will add some extra security headers which will prevent XSS (cross site scripting) attacks.
+
+
+***********Data sanitization
+
+// In app.js
+
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+
+// Data sanitization against NoSQL query middleware
+app.use(mongoSanitize());
+
+// this above middleware looks for req.body, req.params and req.query strings all dollar signs and dots
+
+// Data sanitization against XSS
+app.use(xss());
+// this will sanitize the malicious html code
+
+
+********Preventing Parameter pollution
+//In app.js
+
+const hpp = require('hpp');
+// Data sanitization against XSS
+//Preventing params pollution
+app.use(
+  hpp({
+    whitelist: [
+      'duration',
+      'ratingsQuantity',
+      'ratingsAverage',
+      'maxGroupSize',
+      'difficulty',
+      'price',
+    ],
+  }),
+);
+
+
+//here if we do a query param such as api/v1/tours?sort=duration&sort=price
+
+here we will get an error as we are passing sort two times as it is our requirement. But this will give an error because of our logic that is in apiFeatures.js
+//In apiFeatures.js
+const sortBy = this.queryString.sort.split(',').join(' ');
+
+here the split method works only on strings the query param will be an array as ['duration', 'price']
+
+so to fix this we have used hpp module. Only using hpp module will only allow the second method to work such as in this case the sort will be in terms of price. The sort by duration will be ignored as sort is coming twice. But due to hpp module we are at least not getting any error. But there are some cases where we really want twice query of the same property as in this case. So for that case we provide a white list. All properties which are in whiteList will be allowed despite they are twice. 
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
