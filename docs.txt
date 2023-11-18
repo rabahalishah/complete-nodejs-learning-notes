@@ -4141,27 +4141,1343 @@ here the split method works only on strings the query param will be an array as 
 so to fix this we have used hpp module. Only using hpp module will only allow the second method to work such as in this case the sort will be in terms of price. The sort by duration will be ignored as sort is coming twice. But due to hpp module we are at least not getting any error. But there are some cases where we really want twice query of the same property as in this case. So for that case we provide a white list. All properties which are in whiteList will be allowed despite they are twice. 
 
 
+**************Modeling Data in MongoDB
+Here we are gonna study some DBMS stuff.
+In real world data apps. Modeling data is one of the most curcial and thought require process.
+
+Real World Scenario --> Unstructured Data --> Structured and logical Model
+
+For example:
+There is an online shop we have data of categories, suppliers, carts, customer, orders, products etc. This is an unstructured data. Its structured form would be most likely like this:
+categories --> products -->supplier
+                  |           |
+                  |        Customers
+               Orders ---> Carts
+
+
+There will be four steps that we are gonna follow to model our data
+1. Different types of relationships between data
+2. Referencing/Noramalization vs. Embedding/Denormalization
+3. Embedding or Referencing other docuements?
+4. Types of referencing
+
+The way we design or model our data can make or break our application. Lets discuss the above four mentioned points one by one:
+
+1. Different types of relationships between data:
+
+1 : 1 Relation: Movie--> name (One movie can have only one name)
+1 : Many: There are three sub types:
+	1 : Few: Here a movie can have few awards. A movies cannot have thousands awards. So movie and awards will have 1: few relation.
+	1 : Many: Here movie can have thousands of reviews. So movie and review will have 1:Many relation 
+	1 : Ton: An App can have ton of logs. here it is hard to differentiate between Many and Ton. You can simply take it as a thing which approaches to infinity can be catergories as `	1:Ton Relation. As an app can have infinite logs. so it is a 1:Ton Relation. The diff. betweej Many and Ton will help us in selecting whether we are supposed to normalize or 	denormalize the data
+
+
+Many:Many: There are several actors in a movie. On the same side an Actor can work in a several movies. So this would be catergories as Many:Many Relationship
+
+
+2. Referencing/Noramalization vs. Embedding/Denormalization
+In Referecning or Normalization we keep our data separated and well organized. We always add references of chiled object in parent objects object. 
+For exmaple:
+
+//Movie Name
+{
+  "_id": ObjectID('222'),
+  "title": "Intersteller",
+  "releaseYear": '2014',
+  "actors":[
+    ObjectID('555'),
+    ObjectID('666'),
+    ObjectID('777'),
+
+  ]
+}
+//Actor 1
+{
+  "_id": ObjectID('555'),
+  "name": "Matthew Mc",
+  "age": '50',
+  "born":"Uvale, USA"
+}
+//Actor 2
+{
+  "_id": ObjectID('666'),
+  "name": "Andriedue",
+  "age": '26',
+  "born":"LA, USA"
+}
+//Actor 3
+{
+  "_id": ObjectID('777'),
+  "name": "Anne Hathaway",
+  "age": '37',
+  "born":"NYC, USA"
+}
+
+
+//Here Moview Name object is a parent object which conatains all the IDs of actors.
+PROS and CONS :
+1. Its easier to query each document on its own
+2. we need more than one query to get data from the refered object
+
+In Embedding or denoramilzation all the data is embedded in the parent object. It is not separated as above.
+For example:
+{
+  "_id": ObjectID('222'),
+  "title": "Intersteller",
+  "releaseYear": '2014',
+  "actors":[
+    //Actor 1
+    { 
+      "name": "Matthew Mc",
+      "age": '50',
+      "born":"Uvale, USA"
+    },
+    //Actor 2
+    { 
+      "name": "Andriedue",
+      "age": '26',
+      "born":"LA, USA"
+    },
+    //Actor 3
+    {
+      "name": "Anne Hathaway",
+      "age": '37',
+      "born":"NYC, USA"
+    }
+
+  ]
+}
+
+
+// here you can see the actors and movie both are in the same object:
+
+PROS and CONS 
+1. Performance: We get all the information in one query.
+2. Impossible to query the embedded document on its own.
+
+
+**************How to decide when to embedd/de-normalize and when to reference/normalize the data?
+There are few factors on which we determine whether the data should be normalize or de-normalize. The decision would not be made on the basis of any factor in isolation. The decision would be made in combination.
+There is NO HARD RULE to decide in which form the data should be sturctured.
+
+Relationship Type:                 Embedded/De-normaliztion: 1: FEW 		Referencing/Normalization: 1:Many
+(How two datasets are 					     1: Many					    1:Ton
+related to each other)											    Many:Many
+
+For example:
+
+We have a two dataset: Movies + Images (100) Here it is a 1:Many Relationship. Here since the images are not too much. So therefore, we can simply embed or de-normalize the data.
+
+Data Access Pattern:                 Embedded/De-normaliztion: Data is mostly Read 		Referrencing/Normalization: Data is updated a lot
+(How often data is read  				       Data doesn't change quickly			            (low Read/write Ratio)
+and write: Read/Write Ratio)				       (High Read/write Ratio)				
+
+For example:
+
+If there is a dataset of Movies + Images then in this case the images and movies are only read there is no way to update the image. So in this case simply embedd the data is suitable. Whereas if there is a dataset of Movies + Reviews then we can normalize/referrencing the data as reviews can be updated a lot. 
+
+
+Data Closeness:                 Embedded/De-normaliztion: Dataset really belong together 		Referrencing/Normalization: We frequently need to query both datasets on their own.
+(How much data is  					     					    
+related. How we want											    
+to query)
+
+For example:
+If there is a datasets of user+ email address then in this case it is suitable to have emails embedded in users object. Whereas if there is a data set such as movies + images then in this case we should go for normalization. As there is case in which user have to tell the name of a movie on the basis of the image shown to him. Then here we are querying two datasets on their own so normalizing/referecing the data would be more suitable. 
+
+
+NOTE: There is max 16MB limit on Document in mongoDB we cannot exceed this limit. So remember this limitation while modeling your data.
+
+************Types of Referencing/Normalization
+Once we have let say decided to Normalize our data then we still have to go through to select one out of three types of referencing.
+1. Child Referencing:
+{
+  "_id": ObjectID('222'),
+  "title": "Intersteller",
+  "releaseYear": '2014',
+  "actors":[
+    ObjectID('555'),
+    ObjectID('666'),
+    ObjectID('777'),
+
+  ]
+}
+//Actor 1
+{
+  "_id": ObjectID('555'),
+  "name": "Matthew Mc",
+  "age": '50',
+  "born":"Uvale, USA"
+}
+//Actor 2
+{
+  "_id": ObjectID('666'),
+  "name": "Andriedue",
+  "age": '26',
+  "born":"LA, USA"
+}
+//Actor 3
+{
+  "_id": ObjectID('777'),
+  "name": "Anne Hathaway",
+  "age": '37',
+  "born":"NYC, USA"
+}
+
+// Here this type of referecing is called child Referencing. This type of referencing is only suitable for 1: FEW relationship type. The reason is that as you can see in parent array of Movies the actor array can be long long enough as if there would be so many actors and as we all know in MongoDB each object is count as each document which size should not exceed  16MB. But in case of soo many actors the actors array would be large enough to make the size of this document/obj to exceed 16MB. So therefore, this child refercing is suitable for 1:FEW relationship where its child array have few child elements.
+
+1. Parent Referencing:
+
+//parent
+{
+  "_id": ObjectID('23'),
+  "app": "My Movie Database",
+
+}
+
+//children
+{
+  "_id": ObjectID('1'),
+  "app": ObjectID('23'),
+  "type": 'error',
+  "timestamp": 23453287432
+}
+
+{
+  "_id": ObjectID('2'),
+  "app": ObjectID('23'),
+  "type": 'error',
+  "timestamp": 23453287432
+}
+
+//Here  you can see every child remember his parent by their IDs but parents have no idea about their children. This case very suitable for 1:Many and 1: Ton relationship type. As there is no fear of exceeding 16MB for each document.
+
+Two-way Referencing:
+{
+  "_id": ObjectID('23'),
+  "title": "Intersteller",
+  "releaseYear": '2014',
+  "actors":[
+    ObjectID('555'),
+    ObjectID('666'),
+    ObjectID('777'),
+    //and many more...
+
+  ]
+}
+
+//Actor 1
+{
+  "_id": ObjectID('555'),
+  "name": "Matthew Mc",
+  "age": '50',
+  "born":"Uvale, USA",
+  "movies":[
+	ObjectID('23'),
+        //and many more
+]
+}
+
+//Actor 2
+{
+  "_id": ObjectID('666'),
+  "name": "Andriedue",
+  "age": '26',
+  "born":"LA, USA",
+  "movies":[
+	ObjectID('23'),
+        //and many more
+]
+}
+//Actor 3
+{
+  "_id": ObjectID('777'),
+  "name": "Anne Hathaway",
+  "age": '37',
+  "born":"NYC, USA",
+  "movies":[
+	ObjectID('23'),
+        //and many more
+]
+}
+
+
+// Here in this case both the parents and childs are referecing each other. cause An actor can work in several movies and A movie can have several actors. So this type of referencing is best for many-many relation.
+
+
+****************Summary*********
+1. Sturcture you data the way your application queries and updates data.
+2. Identify the question arises from the application use case first and then model your data. So that the questions can get answered in the most efficient way.
+3. In general, always favor embedding/De-normalizing, unless there is a good reason for normalizing it. Especially for 1:FEW and 1:Many relationships.
+4. A 1:Ton and MANY:MANY relationships are usually the good reason to go for normalizing the data.
+5. favor referecning when the data is updated alot and if you need to access a dataset on its own.
+6. Use embed/denormalization when the data is mostly read but rarely updated.
+7. Do not allow arrays to grow indefinitely. Therefore if you need to normalize, use Child referencing for 1:Few or 1:Many relationship and use Parent referencing for 1:Ton relationships.
+8. Use two way referencing for Many:Many Relationship.
+
+*****************Designing Model for Natours app
+here in our cases we have 5 data sets
+1. Booking
+2. Tours
+3. Users
+4. locations
+5. reviews
+
+
+1. So here users and reviews have 1:Many relation so we are going to use Parent Referencing
+2. Tour and user have Many:Many relation so we can either do child referencing or Embedding (Here it would be better to write FEW:FEW instead of MANY:MANY as there will not be many users and tours in our case)
+3. Tours and location have also FEW:FEW relation so we will go with Embedding
+4. tours and booking have 1:MANY relation we can go with parent referencing here.
+5. users and Booking 1:Many here we will also go with parent referencing.
 
 
 
- 
+*****************Modeling geoSpatial data
+MongoDB also provide a geoSpatial feature to define the locations
+
+Since the location and tour both have close relation so we are model this data in tourModel instead of creating its own collection
+
+//In tourModel.js
+// Add the blow fields in your tour Model schema
+
+    startLocation: {
+      type: {
+        type: String,
+        default: 'Point',
+        enum: ['Point'],
+      },
+      coordinate: [Number], // here we will get longitude and latitude of the points
+      address: String,
+      description: String,
+    },
+    location: [
+      {
+        type: {
+          type: String,
+          default: 'Point',
+          enum: ['Point'],
+        },
+        coordinate: [Number], // here we will get longitude and latitude of the points
+        address: String,
+        description: String,
+        day: Number,
+      },
+    ],
+
+// Now once we have updated our model we have to delete the all pervious data and upload this new one. 
+For that go to your script that we had created to load and delete data from our DB
+
+node ./dev-data/data/import-dev-data.js --delete
+node ./dev-data/data/import-dev-data.js --import
+
+By running above two commands you have deleted the old and uploaded the new data in you tour Model.
+
+
+**************Embedding/Denormalizing user Data in tour model
+Actually we are adding the guides from user and embedding it into the tour model.
+
+The logic is simple when a user will create a new tour he will pass the ids of the guides in the guides array and then in tour schema a document middleware will be called before saving the document that middlware will find the guides in the user model and will embed them in tour model
+// In tourModel.js
+const User = require('./../models/userModel');
+
+// add a guides field in tour model of array type:
+//Rest of the model...
+
+guides: Array,
+
+tourSchema.pre('save', async function (next) {
+  const guidesPromises = this.guides.map(async (id) => await User.findById(id));
+  this.guides = await Promise.all(guidesPromises); // dealing with all promises which are stored in guidesPromises due to looping 
+  next();
+});
 
 
 
+//Postman:
+//In put raw JSON Body
+{
+    "name": "The new Test Tour",
+    "duration": 1,
+    "maxGroupSize": 1,
+    "difficulty": "difficult",
+    "price": 1,
+    "summary": "Test tour",
+    "imageCover": "tour-3-cover.jpg",
+    "guides" :[
+        "6540853b94306261841c04bb",
+        "653cfb3337108a552484beaa"
+    ]
+  
+}
+
+
+// This is how we implement embedding another document in other document.
+// Remember we have embedded/de-normalized data in this case not referenced/normalized
+
+
+****************Referencing/normalizing user data into tour model
+
+In the above code we compelely embedded the user data into the tour model but now we are gonna making the reference of user data. Means instead of directly putting the whole user objects on the basis of their id in the tour model. we will add object Ids only which will refer to the User data.
+
+So comment the above code and replace it with the below:
+
+//In tourModel.js
+// make the below changes in guides field in tourModel.js
+
+guides: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+],
 
 
 
+//Postman:
+//In put raw JSON Body
+{
+    "name": "The new Test Tour",
+    "duration": 1,
+    "maxGroupSize": 1,
+    "difficulty": "difficult",
+    "price": 1,
+    "summary": "Test tour",
+    "imageCover": "tour-3-cover.jpg",
+    "guides" :[
+        "6540853b94306261841c04bb",
+        "653cfb3337108a552484beaa"
+    ]
+  
+}
+
+
+// Now our output result will contain only the object ID not the whole object. The user data is still in a separate collection it is not embedded in tour model.
+
+**********Now we are gonna populate the user data in tour Document
+
+Actually here populating simple means filling. The result of this populating would be same as embedding the data but the in embedding we were embedding the data into the tourModel. In this case were we have referred our object we will see the data is showing in the tour model. But in actual the data is still in the User document separately.
+
+Implementation of populating is simple. Just take is a virtual representation of data instead of just showing Referenced ID in the model.
+
+This can be done by using query middleware. Because the populate function actually makes a query of to find the object by Id and then shows them in the model.
+
+//In tourModel.js
+
+tourSchema.pre(/^find/, function (next) {
+  this.populate({
+    path: 'guides',
+    select: '-__v -passwordChangedAt',
+  });
+  // here its trick to unselect the object which we do not want to show or you can say we want to hide.
+
+  next();
+});
+
+// This is how we implement populate and referencing. Now we will see the objects data in our tour collection. whereas the user data is still in the separate collection.
+
+*************Modeling reviews Parent referencing
+//create a new js file in Models folder called reviewModel.js
+
+//In reviewModel.js
+const mongoose = require('mongoose');
+
+const reviewSchema = new mongoose.Schema(
+  {
+    review: {
+      type: String,
+      required: [true, 'Review cannot be empty'],
+    },
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now(),
+    },
+    tour: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Tour',
+      required: [true, 'Review must belong to a tour.'],
+    },
+
+    user: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User',
+      require: [true, 'Review must belong to a user.'],
+    },
+  },
+  {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: false },
+  },
+);
+
+const Review = mongoose.model('Review', reviewSchema);
+module.exports = Review;
 
 
 
+***************Creating and getting reviews
+// Create reviewCOntroller.js in controller folder
+
+// In reviewController.js
+const Review = require('./../models/reviewModel.js');
+const catchAsync = require('./../utils/catchAsync');
+
+exports.getAllReviews = catchAsync(async (req, res) => {
+  const reviews = await Review.find();
+  res.status(200).json({
+    status: 'success',
+    results: reviews.length,
+    data: {
+      reviews: reviews,
+    },
+  });
+});
+exports.createReview = catchAsync(async (req, res) => {
+  const newReview = await Review.create(req.body);
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      review: newReview,
+    },
+  });
+});
+
+
+// Create reviewRoutes.js in routes folder
+
+const express = require('express');
+
+const reviewController = require('./../controllers/reviewContoller');
+
+const authController = require('./../controllers/authController');
+
+const router = express.Router();
+
+router
+  .route('/')
+  .get(reviewController.getAllReviews)
+  .post(
+    authController.protect,
+    authController.restrictTo('user'),
+    reviewController.createReview,
+  );
+
+module.exports = router;
+
+
+//In app.js
+//add the following code
+
+const reviewRouter = require('./routes/reviewRoutes');
+app.use('/api/v1/reviews', reviewRouter);
 
 
 
+//In postman
+POST request {{URL}}api/v1/reviews/
+
+creating review
+{
+    "review":"loved it!",
+    "rating":"5",
+    "tour":"5c88fa8cf4afda39709c2955",
+    "user":"65446749ac36f14710cf8db8"
+}
+
+
+***********Populating reviews
+// In reviewModel.js
+
+//populating user and tour
+reviewSchema.pre(/^find/, function (next) {
+  this.populate({
+    path: 'tour',
+    select: 'name',
+  }).populate({
+    path: 'user',
+    select: 'name Photo',
+  });
+
+  next();
+});
+
+
+***************Virtually populating reviews and tours
+Here despite populating the reviews we have one problem unsolved that is the problem. The problem is that when we query for the reviews we will get see the tours data. But on querying for tours will not give us the data for reviews. As in this case reviews are pointing toward tours but tours are not pointing toward reviews. Since we have done parent referenceing, In parent referencing parent does not know about its children. Similarly in this case tours (parents) does not know about its children (reviews).
+
+There are two solution for this problem.
+1. Either we do query manually for reviews when we do query for tours. But this solution is not acceptable.
+2. Do child referencing in tour model or populate an array in tours model. This solution is not feasible as we know the rule. The array should not be exceed 16MB or not too large as we know the user will adding reviews for tours which make the review array could be go infinitely large which we cannot afford in embedding the array.
+
+
+So the most feasible solution is probvided by mongoose. That is virtual Populate. 
+
+//In tourModel.js
+//Virtual populate
+tourSchema.virtual('reviews', {
+  ref: 'Review',
+  //Now connecting two models.
+  foreignField: 'tour', //here we specify the field to connet. In reviewModel we have tour field where the id of tour is being stored.
+  localField: '_id', //here the _id which is id in the current model will be called tour in Foreign Model that is reviewModel.
+});
+
+NOTE: Since we only want to show review with tours when the user make request to see a specific tour not on all tours as it would be a lot of information that user will get. 
+So to do that go to you tourController and getTour function
+
+//In tourController.js
+
+Replace this line "const tour = await Tour.findById(req.params.id)"
+with "const tour = await Tour.findById(req.params.id).populate('reviews');"
+
+//IMPORTANT
+
+Now on querying the result you will your reviews has been successfully populated in tours. But the problem will you notice is that the populating will have become nested. As there will be tour having a field of reviews which contains again the information of the tour and user which is unnecessary and already defined in tour.
+So to avoid this go to reviewModel.js
+
+//In reviewModel.js
+
+In your poplulating query middeware
+
+replace 
+
+  this.populate({
+      path: 'tour',
+      select: 'name',
+    }).populate({
+      path: 'user',
+      select: 'name Photo',
+    });
+
+with
+
+  this.populate({
+      path: 'user',
+      select: 'name Photo',
+    });
+
+
+**********Nested route
+here in this concept we will implement the nested routes.
+Actually when a user make a review the user have to enter his ID and the id of the tour of which he want to create a review. This is acceptable only for development purposes but in case of production this wont be the case.
+
+The case would be like that we have to create a separete nested route which contains the id of the tour 
+
+POST tour/s32r843hci934hf94380f/review
+
+here s32r843hci934hf94380f this is the random ID of a tour of which we want to create review
+
+//In tourRoutes.js
+// add the following route
+
+router
+  .route('/:tourId/reviews')
+  .post(
+    authController.protect,
+    authController.restrictTo('user'),
+    reviewController.createReview,
+  );
+
+
+now go to createReview function
+
+and replace that function with the following logic
+
+// In reviewController.js
+exports.createReview = catchAsync(async (req, res) => {
+  //Allowing nested routes
+  // since we are not providing our tour Id and user Id in the req.body object instead we are providing them in the URL. So below we are getting that data from URL  so that we do not have     // to enter it manually
+  if (!req.body.tour) req.body.tour = req.params.tourId;
+  if (!req.body.user) req.body.user = req.params.id;
+
+  const newReview = await Review.create(req.body);
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      review: newReview,
+    },
+  });
+});
+
+
+// In postman
+POST {{URL}}api/v1/tours/5c88fa8cf4afda39709c2955/reviews
+
+body:
+
+{
+    "rating":5,
+    "review":"Best tour in the world!"
+}
 
 
 
+************Merger params
+In the above code there is an issue that problem is that you may have noticed that we are using create review route in tour Routes which is agianst the rule and can be quite confusion. we did this just because the route is starting with tour? Still this is not feasible. 
+to deal with this situation we are gonna use merge params. This will redirect our route.
+In simple words it logic work like that "If you found a route like "/:tourId/reviews/" redirect it to reviewRoutes
+
+Lets implement this made changes in the above code
+keep all things same except 
+the below code in tourRoutes.js 
+
+//In tourRoutes.js
+
+remove this code
+  .route('/:tourId/reviews')
+  .post(
+    authController.protect,
+    authController.restrictTo('user'),
+    reviewController.createReview,
+  );
+
+
+and add:
+
+const reviewRoutes = require('./../routes/reviewRoutes');
+router.use('/:tourId/reviews', reviewRoutes);
+//Here whenever the user will come to /tour route and found a route like this "/:tourId/reviews/" this middleware will redirect it to reviewRoutes"
+
+//In reviewRoutes.js
+add this line of code.
+
+const router = express.Router({ mergeParams: true });
+
+mergeParams will help use to get access to id which is in the URL
+
+// In postman
+POST {{URL}}api/v1/tours/5c88fa8cf4afda39709c2955/reviews
+
+body:
+
+{
+    "rating":5,
+    "review":"Best tour in the world!"
+}
+
+
+********Making Nested get tour
+Now we are gonna implement same mechanism for getting the review on the basis of id of the tour in the URL
+
+simply go to reviewController.js
+
+//In reviewController.js
+
+Modify your reviewController as 
+
+exports.getAllReviews = catchAsync(async (req, res) => {
+  let filter = {};
+  //here we are looking for tourId in url
+  if (req.params.tourId) filter = { tour: req.params.tourId };
+  const reviews = await Review.find(filter);
+  res.status(200).json({
+    status: 'success',
+    results: reviews.length,
+    data: {
+      reviews: reviews,
+    },
+  });
+});
+
+
+now due to the above implemented mergeParams this function will be called on making GET request
+// In postman
+POST {{URL}}api/v1/tours/5c88fa8cf4afda39709c2955/reviews
+
+*************Factory function for deleting Single user, review and tour
+
+There is nothing new we are simply refracting our code to not repeat it.
+
+simply create a file namely "handlerFactory.js" in controller folder
+
+//In handlerFactory.js
+const catchAsnyc = require('./../utils/catchAsync');
+const AppError = require('./../utils/appError');
+
+// Here we are making a generic function to delete one item
+exports.deleteOne = (Model) =>
+  catchAsnyc(async (req, res, next) => {
+    const doc = await Model.findByIdAndRemove(req.params.id);
+    if (!doc) {
+      return next(new AppError('No Tour Found with this ID', 404));
+    }
+    res.status(204).json({
+      status: 'success',
+      data: null,
+    });
+  });
+
+
+// Here we just have to import this generic function where we want and we simply have to pass our respective model.
+
+So now go to your respective controller files where you want to use this function
+
+// In tourController.js
+const factory = require('./handlerFactory');
+exports.deleteTour = factory.deleteOne(Tour);
+
+//simple is that 
 
 
 
+// In userController.js
+const factory = require('./handlerFactory');
+exports.deleteUser = factory.deleteOne(User);
+
+// In reviewController.js
+const factory = require('./handlerFactory');
+exports.deleteReview = factory.deleteOne(Review);
 
 
+// Here the logic is that when ever the user will hit respective route these functions would be called and these functions would call handlerFactory function.
+
+
+****************Creating factory handler function for update and create user, tour and review
+//In handlerFactory.js
+
+// Here we are making a generic function to create one item
+exports.createOne = (Model) =>
+  catchAsnyc(async (req, res, next) => {
+    const doc = await Model.create(req.body);
+    res.status(200).json({
+      status: 'success',
+      data: {
+        data: doc,
+      },
+    });
+  });
+
+
+**NOTE**: Make sure that all your functions in handlerFactory function must return a function otherwise they would be considered as an empty object. Therefore in the above callback function I am not using any bracktes after => arrow so that arrow function automatically return it. In case of { } one must have to use return statement. otherwise they would be considered as an empty object.
+
+
+// In tourController.js
+const factory = require('./handlerFactory');
+exports.createTour = factory.createOne(Tour);
+exports.updateTour = factory.updateOne(Tour);
+
+//In reviewController.js
+const factory = require('./handlerFactory');
+
+//here we have created a middleware:
+exports.setTourUserIds = (req, res, next) => {
+  //Allowing nested routes
+  // since we are not providing our data in the body object we will provide them in the URL.
+  if (!req.body.tour) req.body.tour = req.params.tourId;
+  if (!req.body.user) req.body.user = req.params.id;
+  next();
+};
+
+exports.createReview = factory.createOne(Review);
+exports.updateReview = factory.updateOne(Review);
+
+// since we have introduced a middleware here. Lets add it in the stack in reviewRouter.js
+router
+  .route('/')
+  .get(reviewController.getAllReviews)
+  .post(
+    authController.protect,
+    authController.restrictTo('user'),
+    reviewController.setTourUserIds, //here is the middleware
+    reviewController.createReview,
+  );
+
+// In userController.js
+const factory = require('./handlerFactory');
+//Do not try to update password with this update function!
+exports.updateUser = factory.updateOne(User);
+
+// there is no need to do createOne for user. As there is a separate for creating user that is signup route.
+
+
+************Factory Function for getOne and getAll reviews, users and tours
+
+// In handlerFactory.js
+exports.getOne = (Model, popOptions) =>
+  catchAsnyc(async (req, res, next) => {
+    let query = Model.findById(req.params.id);
+    if (popOptions) query = query.populate(popOptions);
+    const doc = await query;
+    if (!doc) {
+      return next(new AppError('No document Found with this ID', 404));
+    }
+    res.status(200).json({
+      status: 'success',
+      data: {
+        data: doc,
+      },
+    });
+  });
+
+exports.getAll = (Model) =>
+  catchAsnyc(async (req, res, next) => {
+    //To allow for nested GET reviews on tour (hack)
+    let filter = {};
+    //here we are looking for tourId in url
+    if (req.params.tourId) filter = { tour: req.params.tourId };
+    // EXECUTE QUERY
+    const features = new APIFeatures(Model.find(filter), req.query)
+      .filter()
+      .sort()
+      .limitFields()
+      .paginate();
+    const doc = await features.query;
+
+    res.status(200).json({
+      status: 'success',
+      results: doc.length,
+      data: {
+        data: doc,
+      },
+    });
+  });
+
+
+// In tourController.js
+const factory = require('./handlerFactory');
+exports.getAllTours = factory.getAll(Tour);
+exports.getTour = factory.getOne(Tour, { path: 'reviews' });
+
+// In reviewController.js
+const factory = require('./handlerFactory');
+exports.getAllReviews = factory.getAll(Review);
+exports.getReview = factory.getOne(Review);
+
+//In userController.js
+const factory = require('./handlerFactory');
+exports.getAllUsers = factory.getAll(User);
+exports.getUser = factory.createOne(User);
+
+
+***********Adding me End point to get the current user data
+//In userController.js
+exports.getMe = (req, res, next) => {
+  req.params.id = req.user.id;
+  next();
+};
+
+// here we have created a middleware...actually we will get the data from our factory function that is getOne(User) but the problem is that the getUSer function requires an id of the user but here in /me route we do not want to pass any id we simply want to get the data of the current logged in user if the user is logged in.
+So here we are assigning the req.params.id variable that is gonna use in getUser function equal to req.user.id which is the id of the current logged in user.
+
+// In userRoutes.js
+router.get(
+  '/me',
+  authController.protect,
+  userController.getMe,
+  userController.getUser,
+);
+
+
+*************Adding missing authentications and autherizations
+// In tourRoutes.js
+const express = require('express');
+
+const tourController = require('../controllers/tourController');
+const authController = require('../controllers/authController');
+const reviewRoutes = require('./../routes/reviewRoutes');
+
+const router = express.Router();
+router.use('/:tourId/reviews', reviewRoutes);
+router
+  .route('/top-5-cheap')
+  .get(tourController.aliasTopTours, tourController.getAllTours);
+
+router.route('/tour-stats').get(tourController.getTourStats);
+router
+  .route('/monthly-plan/:year')
+  .get(
+    authController.restrictTo('admin', 'lead-guide', 'guide'),
+    tourController.updateTour,
+    tourController.getMonthlyPlane,
+  );
+router
+  .route('/')
+  .get(tourController.getAllTours)
+  .post(
+    authController.protect,
+    authController.restrictTo('admin', 'lead-guide'),
+    tourController.createTour,
+  );
+router
+  .route('/:id')
+  .get(tourController.getTour)
+  .patch(
+    authController.protect,
+    authController.restrictTo('admin', 'lead-guide'),
+    tourController.updateTour,
+  )
+  .delete(
+    authController.protect,
+    authController.restrictTo('admin', 'lead-guide'),
+    tourController.deleteTour,
+  );
+
+module.exports = router;
+
+
+// In userRoutes.js
+
+const express = require('express');
+const userController = require('../controllers/userController');
+const authController = require('../controllers/authController');
+
+const router = express.Router();
+router.post('/signup', authController.signup);
+router.post('/login', authController.login);
+router.post('/forgotPassword', authController.forgotPassword);
+router.patch('/resetPassword/:token', authController.resetPassword);
+
+router.use(authController.protect);
+// all routes after this middleware are protected as we know middleware runs in sequence.
+// so all routes below this will be reached only when the above middlware will approve them as an authenticated user. SO there is no need to individually add the protect function in each route separately.
+
+router.patch('/updateMyPassword', authController.updatePassword);
+router.get('/me', userController.getMe, userController.getUser);
+router.patch('/updateMe', userController.updateMe);
+router.delete('/deleteMe', userController.deleteMe);
+
+router
+  .route('/')
+  .get(userController.getAllUsers)
+  .post(userController.createUser);
+router
+  .route('/:id')
+  .get(userController.getUser)
+  .patch(userController.updateUser)
+  .delete(userController.deleteUser);
+
+module.exports = router;
+
+// In reviewRoutes.js
+const express = require('express');
+
+const reviewController = require('./../controllers/reviewContoller');
+
+const authController = require('./../controllers/authController');
+
+const router = express.Router({ mergeParams: true });
+
+router
+  .route('/')
+  .get(reviewController.getAllReviews)
+  .post(
+    authController.protect,
+    authController.restrictTo('user'),
+    reviewController.setTourUserIds,
+    reviewController.createReview,
+  );
+
+router
+  .route('/:id')
+  .get(reviewController.getReview)
+  .patch(
+    authController.restrictTo('user', 'admin'),
+    reviewController.updateReview,
+  )
+  .delete(
+    authController.restrictTo('user', 'admin'),
+    reviewController.deleteReview,
+  );
+
+module.exports = router;
+
+*************Importing Tours, users and reviews data
+
+// In dev-import-data.js
+const fs = require('fs');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+
+const Tour = require('./../../models/tourModel'); // Importing out model/collection
+const User = require('./../../models/userModel'); // Importing out model/collection
+const Review = require('./../../models/reviewModel'); // Importing out model/collection
+
+dotenv.config({ path: './config.env' });
+
+const DB = process.env.DATABASE.replace(
+  '<PASSWORD>',
+  process.env.DATABASE_PASSWORD,
+);
+mongoose
+  .connect(DB, {
+    useNewUrlParser: true,
+    useCreateIndex: true,
+    useFindAndModify: false,
+    useUnifiedTopology: true,
+  })
+  // eslint-disable-next-line no-console
+  .then(() => console.log('Database Connected Successfully'));
+
+// Readung json file
+const tours = JSON.parse(fs.readFileSync(`${__dirname}/tours.json`, 'utf-8'));
+const users = JSON.parse(fs.readFileSync(`${__dirname}/users.json`, 'utf-8'));
+const reviews = JSON.parse(
+  fs.readFileSync(`${__dirname}/reviews.json`, 'utf-8'),
+);
+/* parse() JSON parsing is the process of converting a JSON object which is in text format to a Javascript object
+ that can be used inside a program*/
+
+// importing data into DB
+const importData = async () => {
+  try {
+    await Tour.create(tours);
+    await User.create(users, { validateBeforeSave: false });
+    await Review.create(reviews);
+    console.log('Data successfully loaded!');
+  } catch (err) {
+    console.log(err);
+  }
+  process.exit();
+};
+
+// Deleting already present data in database
+const deleteData = async () => {
+  try {
+    await Tour.deleteMany(); //we will pass nothing so it will delete all the data
+    await User.deleteMany(); //we will pass nothing so it will delete all the data
+    await Review.deleteMany(); //we will pass nothing so it will delete all the data
+    console.log('All previous data have deleted successfully');
+  } catch (err) {
+    console.log(err);
+  }
+  process.exit();
+};
+
+// Process.argv
+if (process.argv[2] === '--import') {
+  importData();
+} else if (process.argv[2] === '--delete') {
+  deleteData();
+}
+console.log(process.argv);
+
+//***Command in the terminal
+node ./dev-data/data/import-dev-data.js --delete
+node ./dev-data/data/import-dev-data.js --import
+
+
+***************Increasing the reading performance
+Whenever a user do a query over fields to get some specified results then the database have to go through all fields to find that specific one. For example for our query
+GET {{URL}}api/v1/tours?price[lt]=20&averageRating[gt]=4.7
+
+and we get only 3 results out of 100 fields.
+
+if you would apply explain() method on your query function in your code then you will see how many documents were examined and out of that how much get that returns. In case of thousands of documents this will make our reading process slow. As to get only 3 results the database has to look or scan over thousands of documents. So to solve this problem indexes come here.
+
+All you have to do is to specify indexes on specific fields. How would you get to know on which field you have to do indexing? The answer is that you have to study or analyze the user most search field as here in our case it is slug, price and averageRating comparison.
+
+there are two types of indexing, 
+1. Unique
+2. Compound
+
+By indexing the database directly look for index instead of scanning the whole document. Which in results increases the performance. But remember, indexes also come at some cost that is their size. The size of a single index is greater than the size of a document. So we carefully have to apply index on only those fields which are  most in use. Do not blindly apply indexing. First analyze your data and then apply indexing.
+
+//In tourModel.js
+// Rest of the code...
+// setting index to increase reading data performance
+
+tourSchema.index({ price: 1, ratingsAverage: -1 }); //compound
+tourSchema.index({ slug: 1 }); //unique
+
+
+***************calculaitng ratings Average using aggregation pipeline and static method
+This static method will be called each time when the user rate a tour. This function will add the new rating and then calculate the new updated average rating and will store it in the database.
+
+// In reviewModel.js
+reviewSchema.statics.calcAverageRatings = async function (tourId) {
+  // here we will make aggregation pipeline
+  const stats = await this.aggregate([
+    {
+      $match: { tour: tourId },
+    },
+    {
+      $group: {
+        _id: '$tour',
+        nRating: { $sum: 1 },
+        avgRating: { $avg: '$rating' },
+      },
+    },
+  ]);
+
+  console.log('stats: ', stats);
+
+  await Tour.findByIdAndUpdate(tourId, {
+    ratingsQuantity: stats[0].nRating,
+    ratingsAverage: stats[0].avgRating,
+  });
+};
+
+reviewSchema.post('save', function () {
+  // this points to current review
+  this.constructor.calcAverageRatings(this.tour);
+  //here this.construtor points toward Review Model
+});
+
+// here we are applying static method as it is very handy for applying aggregation pipeline. First we are selecting all the reviews on the current tourId and then we are applying sum and average on them.
+to call this we are using post method. 
+
+**NOTE**: I got an error called model cannot be overwrite to prevent this I added a line of in tourMode.js
+mongoose.models = {};
+//add this code before the below line
+const Tour = mongoose.model('Tour', tourSchema);
+
+************Updating review statistics on updating and deleting the review
+when a user updates or delete a review total number of reviews or average rating should be changed. To note this change and update review statistics we do not have any specific data
+
+//findByIdAndUpdate
+//findByIdAndDelete
+
+reviewSchema.pre(/^findOneAnd/, async function (next) {
+  this.r = await this.findOne(); //executing the query to get review document here r stands for review,
+  // saving the data in this.r this is a trick to pass data from pre middleware to post middleware
+  next();
+});
+reviewSchema.post(/^findOneAnd/, async function () {
+  // await this.findOne(); THIS will not work here as query has already executed.
+  await this.r.constructor.calcAverageRatings(this.r.tour); //here this.r is from the above pre middleware
+});
+
+//here we will user query middleware....The pre middlware is used just to get the review document. In second step of post we are here calling calcAverageRatings to calculate the statistics again
+
+***********preventing duplicate reviews
+here we will prevent the same user to make duplicate reviews
+we can do with this by using compound index
+
+// go to reviewModel.js
+
+reviewSchema.index(
+  { tour: 1, user: 1 }, // here we are compounding
+  {
+    unique: true, //here we are setting to it unique so that on making its duplicate it give error
+  },
+);
+
+************Implementing geoSpatial Queries to find the tours within the provided radius
+
+The logic is simple using geospatial queries we will provide a coordinates and radius of the region then the mongoose will run the search uisng find method and will filter the tours which are within the provided range of radius.
+
+// In tourRoutes.js
+//REST of the code....
+router
+  .route('/tours-within/:distance/center/:latlng/unit/:unit')
+  .get(tourController.getToursWithin);
+// /tours-within?distance=223&center=-40,45&unit=mi
+// /tours-within/223/center/40,45/unit/mi
+
+// In tourContoller.js
+exports.getToursWithin = catchAsnyc(async (req, res, next) => {
+  const { distance, latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',');
+
+  const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1;
+  // here 3963.2 and 6378.1 is radius of earth in miles and kilometers respectively
+
+  if (!lat || !lng) {
+    next(
+      new AppError(
+        'Please provide latitutr and longitude in the format lat,lng.',
+        400,
+      ),
+    );
+  }
+
+  const tours = await Tour.find({
+    startLocation: { $geoWithin: { $centerSphere: [[lng, lat], radius] } },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    results: tours.length,
+    data: {
+      data: tours,
+    },
+  });
+});
+
+//In tourModel.js
+//Rest of the code
+tourSchema.index({ startLocation: '2dsphere' }); // 2D in index for geospatial properties
+//We did this cause $geoWithin requires an a 2dSphere index to execute the query and this index will help us to find or match the results.
+
+//In POSTMAN
+GET {{URL}}api/v1/tours/tours-within/200/center/34.111745,-118.113491/unit/mi
+
+*****************Using geoSpatial aggregation to calculate the distance from the provided coordinates
+// In tourRoutes.js
+
+router.route('/distances/:latlng/unit/:unit').get(tourController.getDistances);
+
+//In tourController.js
+exports.getDistances = catchAsnyc(async (req, res, next) => {
+  const { latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',');
+  const mulitplier = unit === 'mi' ? 0.000621371 : 0.001;
+
+  if (!lat || !lng) {
+    next(
+      new AppError(
+        'Please provide latitutr and longitude in the format lat,lng.',
+        400,
+      ),
+    );
+  }
+
+  const distances = await Tour.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: 'Point',
+          coordinates: [lng * 1, lat * 1],
+        },
+        distanceField: 'distance',
+        distanceMultiplier: mulitplier,
+      },
+    },
+    {
+      $project: {
+        distance: 1,
+        name: 1,
+      },
+    },
+  ]);
+  res.status(200).json({
+    status: 'success',
+    data: {
+      data: distances,
+    },
+  });
+});
+
+// IN tourModel.js
+// tourSchema.pre('aggregate', function (next) {
+//   this.pipeline().unshift({ $match: { secretTour: { $ne: true } } });
+//   console.log('aggregation middleware pipeline: ', this.pipeline());
+
+//   next();
+// });
+
+comment our the above code in tourModel.js
+the reason is that the $geoNear field should be the first one in aggration pipeline otherwise you will get an error. And this above code which I have recommended you to comment out is making $geoNear a second field by maiking $match field the first one.
+
+//also geoNear requires an index in the model so below is that:
+
+//In tourModel.js
+//Rest of the code
+tourSchema.index({ startLocation: '2dsphere' }); // 2D in index for geospatial properties
+//We did this cause $geoWithin & $geoNear requires an a 2dSphere index to execute the query and this index will help us to find or match the results.
+
+//PostMan
+GET {{URL}}api/v1/tours/distances/34.111745,-118.113491/unit/mi
+
+********************Documentation
+Go to postman and add documentation.
+set variable for password
+
+
+
+******************API section Completed Here
