@@ -3359,6 +3359,9 @@ So I usually prefer to run the below command to generate a random key in the ter
 
 Syntax: require('crypto').randomBytes(size).toString('base64').slice(0,size)
 
+incase above dont work: node -e "console.log(require('crypto').randomBytes(32).toString('base64').slice(0,32))"
+
+
 **************Signing up the user and sending JWT back to the client
 //In authController.js
 const jwt = require('jsonwebtoken');
@@ -4031,7 +4034,7 @@ Implement two factor authentication. Like after logging in sending an OTP or cod
 
 
 *************sending JWT in httpCookie only
-cookie is nothing simply a text that browser used to send and receive
+cookie is nothing simply a text that browser used to send and receive to the same server on future requests.
 
 lets add a logic to send jwt in cookie
 
@@ -5481,3 +5484,65 @@ set variable for password
 
 
 ******************API section Completed Here
+
+
+************Extra
+
+//In config folder (backend)
+//In allowedOrigin.js
+const allowedOrigins = [
+    'https://www.yoursite.com',
+    'http://127.0.0.1:5500',
+    'http://localhost:3500',
+    'http://localhost:3000'
+];
+
+module.exports = allowedOrigins;
+
+
+//In corsOptions.js
+const allowedOrigins = require('./allowedOrigins');
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+            callback(null, true)
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    optionsSuccessStatus: 200
+}
+
+module.exports = corsOptions;
+
+//In dbConn.js
+const mongoose = require('mongoose');
+
+const connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.DATABASE_URI, {
+            useUnifiedTopology: true,
+            useNewUrlParser: true
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+module.exports = connectDB
+
+//roles_list
+const ROLES_LIST = {
+    "Admin": 5150,
+    "Editor": 1984,
+    "User": 2001
+}
+
+module.exports = ROLES_LIST
+
+******************Refresh token concept
+There is also an advance concept called refresh token. The concept is simple. Let say you have logged in on ABC.com you get access token with an expiry time of 10min. After 10min your access token will be expired. Now user have to login again. In this case the backend will send an error to frontend with a status code of either 401 or 403. So handling this error and not to make user log in again without entering his credentials again. The backend right away sends a refresh token to the client and then the client sends back this refresh token to the server showing that he is a valid user and then again backend varifies that refresh token as backend contains a secret_refresh_Token in its .env file and will generate a new access token which will remain valid for next 10 min and will send to the frontend. Now front will store the new token in its cookies and will use it for the future concept. In this way you can make your app more secure by generating new token after every session. Remember the refresh token is generated and a new token is assigned on a specific route not on all routes.
+In backend we use middlewares to create the pipeline and in frontend we use interceptors to create this pipeline to automate this whole process.
+Always remember there is a separat route for generating a refresh token e.g /refresh on making request to this route will give you refresh token.
+This all process will be happening in the background. User won't know whats happening in the background. Always remember your refresh token have longer expiry time than accessToken. During the time your refresh token is valid you will be allowed to generate accesstoken on every expiry of accessToken. Once the refresh token has expired you will have to login again.
