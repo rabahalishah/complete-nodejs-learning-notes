@@ -5546,3 +5546,102 @@ There is also an advance concept called refresh token. The concept is simple. Le
 In backend we use middlewares to create the pipeline and in frontend we use interceptors to create this pipeline to automate this whole process.
 Always remember there is a separat route for generating a refresh token e.g /refresh on making request to this route will give you refresh token.
 This all process will be happening in the background. User won't know whats happening in the background. Always remember your refresh token have longer expiry time than accessToken. During the time your refresh token is valid you will be allowed to generate accesstoken on every expiry of accessToken. Once the refresh token has expired you will have to login again.
+
+
+*********************Uploading files using Multer
+//Here we have to show both front end and backend as well. So for front end Im using React.
+
+//Front End
+import React, { useState } from "react"
+import axios from 'axios'
+
+function App() {
+  const [file, setFile] = useState()
+  const upload = () => {
+    const formData = new FormData()
+    formData.append('file', file)
+    axios.post('http://localhost:3001/upload',formData )
+    .then( res => {})
+    .catch(er => console.log(er))
+  }
+   return (
+    <div>
+      <input type="file" onChange={(e) => setFile(e.target.files[0])}/>
+      <button type="button" onClick={upload}>Upload</button>
+    </div>
+  )
+}
+
+export default App;
+
+//here we doing nothing, simply creating an input field which will store the uploading file in file variable using useState hook. Then we are creating a button which will call an upload function on click. Here in upload function we are simple storing our file in the form of an object and sending it to the backend using http post method on /upload endpoint.
+
+
+//Back End
+const express = require('express')
+const cors = require('cors')
+const multer = require('multer')
+
+const app = express()
+app.use(cors())
+app.use(express.json())
+
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    return cb(null, "./public/Images")
+  },
+  filename: function (req, file, cb) {
+    return cb(null, `${Date.now()}_${file.originalname}`)
+  }
+})
+
+const upload = multer({storage})
+
+app.post('/upload', upload.single('file'), (req, res) => {
+  console.log(req.body)
+  console.log(req.file)
+})
+
+app.listen(3001, () => {
+  console.log("Server is running")
+})
+
+
+//here we have simply created a server which is listening on port 3001. The main thing here is multer() function which requires a storage object. Here storage object contains two thing one is destination and other is filename. Providing all that. We are creating our endpoint to get the data coming from the user. here in upload.single() the single() method is basically applying on multer function. Single is for uploading the single file. For multiple files you can use arrays. you can also integrate your database as req.body contains that file which user is sending from the front end. You can store it in your database.
+
+NOTE: There is another npm package called cloudinary. You can also use that app to upload media.
+
+
+*******************Payment methods (thoery)
+Whenever we make online payments we do not pay directly to the website or product owner. For example you have bought a product from amazon and you did an online payment. Here on making a successful payment your amount will be sent to the Payment gateway (e.g strip etc.) These payment gateways send a token to the product owner and then the product has released. The question here is that when the actual owner would get the payment? The answer is that he will have to negotiate with the payment gateway. They may either pay him after 3 days or maybe 30 days it depends on your deal which you have done so far.
+
+Some popular gateways:
+Braintree
+Stripe
+Razorpay
+Instamojo
+EBS
+2checkout
+
+**States of Online Payment
+1) Failed: 
+When a payment get failed, which is totally fine. User, Payment gateways, banks all get the payment failed notification ensuring that we all are on the same page. The reason of failure can be incorrect card number, incorrect name, insufficient balance, incorrect OTP entered, payment not completed on time etc.
+
+2) Captured/ Success:
+Simply payment has done successfully. Everyone is happy. There is huge process behind this successfull payment. 
+
+3) Authorized:
+The Authorization is not equal to success but its an important part of the whole process.
+
+                                                            |------------> Payment Created -------->|
+                                                            |------------> Payment Failed --------->|
+                                                            |                                       |
+Customer Attempts payment ---> Bank sends status ---> Payment Gateway ---> Authorized------->Late Autorized
+                                                                             |                      |
+                                                                             |--->Success/Refund<---|
+
+NOTE: Your payment is always safe. If the payment is not authorized then the default of the gateway is to send back or refund the payment to the users account usually after 3 to 4 days.
+Late Authorized
+Refunds
+
+
