@@ -1540,7 +1540,7 @@ mongodb://localhost:27017/DatabaseName
 
 Connecting to hosted database:
 
-mongodb+srv://rabahalishah:<PASSWORD>@cluster0.vsioz83.mongodb.net/DATABASENAME?retryWrites=true&w=majority
+mongodb+srv://yourusername:<PASSWORD>@cluster0.vsioz83.mongodb.net/DATABASENAME?retryWrites=true&w=majority
 
 For talking to the database there are several drivers we are gonna use Mongoose.
 
@@ -1551,8 +1551,8 @@ npm install mongoose
 // In config.env file:
 NODE_ENV=development
 PORT=3000
-DATABASE_PASSWORD=123456
-DATABASE=mongodb+srv://rabahalishah:<PASSWORD>@cluster0.vsioz83.mongodb.net/natours?retryWrites=true&w=majority
+DATABASE_PASSWORD=yourpassword
+DATABASE=mongodb+srv://yourusername:<PASSWORD>@cluster0.vsioz83.mongodb.net/natours?retryWrites=true&w=majority
 DATABASE_LOCAL=mongodb://localhost:27017/natours
 
 
